@@ -1,0 +1,12 @@
+data/
+results/
+experiments/
+*.ckpt
+*.pt
+*.pth
+*.npy
+__pycache__/
+.DS_Store
+.venv/
+wandb/
+.claude.local.md
