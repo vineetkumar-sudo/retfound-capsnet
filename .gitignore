@@ -1,6 +1,6 @@
-data/
-results/
-experiments/
+/data/
+/results/
+/experiments/
 *.ckpt
 *.pt
 *.pth
