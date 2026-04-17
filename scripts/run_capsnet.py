@@ -68,20 +68,32 @@ def make_loaders(
 # Evaluation
 # ---------------------------------------------------------------------------
 
-def eval_capsnet(model: CapsNet, loader: DataLoader, device: torch.device) -> dict:
+def eval_capsnet_with_loss(
+    model: CapsNet, loader: DataLoader, device: torch.device,
+    margin: MarginLoss, reconstruction_weight: float,
+) -> dict:
+    """Single pass returning metrics + mean loss for CapsNet."""
     model.eval()
-    preds, labels = [], []
+    preds, labels, loss_sum, n = [], [], 0.0, 0
     with torch.no_grad():
         for X, y in loader:
-            out = model(X.to(device))
-            preds.extend(out["lengths"].argmax(dim=1).cpu().numpy())
-            labels.extend(y.numpy())
-    p, l = np.array(preds), np.array(labels)
+            X, y = X.to(device), y.to(device)
+            out = model(X, labels=y)
+            m = margin(out["lengths"], y)
+            if "reconstruction" in out:
+                m = m + reconstruction_weight * F.mse_loss(out["reconstruction"], X)
+            loss_sum += m.item() * X.size(0)
+            n += X.size(0)
+            preds.append(out["lengths"].argmax(dim=1).cpu().numpy())
+            labels.append(y.cpu().numpy())
+    p = np.concatenate(preds)
+    l = np.concatenate(labels).astype(int)
     return {
         "qwk": cohen_kappa_score(l, p, weights="quadratic"),
         "accuracy": accuracy_score(l, p),
         "macro_f1": f1_score(l, p, average="macro"),
         "confusion_matrix": confusion_matrix(l, p, labels=range(5)),
+        "loss": loss_sum / n,
     }
 
 
@@ -99,78 +111,63 @@ def train_one_fold(
     patience: int,
     num_classes: int,
     reconstruction_weight: float,
+    weight_decay: float = 1e-4,
     log_every: int = 10,
     verbose: bool = False,
-) -> tuple[dict, list[dict]]:
+) -> tuple[dict, list[dict], dict]:
+    """Returns (best_val_metrics, history, best_state). History records train+val per epoch."""
     model = model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=float(lr))
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=float(lr), weight_decay=float(weight_decay)
+    )
     margin = MarginLoss(num_classes=num_classes)
 
     best_qwk, best_metrics, best_epoch, no_improve = -1.0, {}, 0, 0
+    best_state: dict | None = None
     history: list[dict] = []
 
     for epoch in range(1, max_epochs + 1):
+        # --- train pass (gradient update) ---
         model.train()
-        total_loss, total_margin, total_recon, n = 0.0, 0.0, 0.0, 0
         for X, y in train_loader:
             X, y = X.to(device), y.to(device)
             optimizer.zero_grad()
             out = model(X, labels=y)
-            m_loss = margin(out["lengths"], y)
-            loss = m_loss
-            r_loss_val = 0.0
+            loss = margin(out["lengths"], y)
             if "reconstruction" in out:
-                r_loss = F.mse_loss(out["reconstruction"], X)
-                loss = m_loss + reconstruction_weight * r_loss
-                r_loss_val = r_loss.item()
+                loss = loss + reconstruction_weight * F.mse_loss(out["reconstruction"], X)
             loss.backward()
             optimizer.step()
-            total_loss += loss.item() * X.size(0)
-            total_margin += m_loss.item() * X.size(0)
-            total_recon += r_loss_val * X.size(0)
-            n += X.size(0)
-        train_loss = total_loss / n
-        train_margin = total_margin / n
-        train_recon = total_recon / n
 
-        # Validation
-        metrics = eval_capsnet(model, val_loader, device)
-        model.eval()
-        val_loss_sum, vn = 0.0, 0
-        with torch.no_grad():
-            for X, y in val_loader:
-                X, y = X.to(device), y.to(device)
-                out = model(X, labels=y)
-                l = margin(out["lengths"], y)
-                if "reconstruction" in out:
-                    l = l + reconstruction_weight * F.mse_loss(out["reconstruction"], X)
-                val_loss_sum += l.item() * X.size(0)
-                vn += X.size(0)
-        val_loss = val_loss_sum / vn
+        # --- eval on train + val (metrics + loss) ---
+        train_m = eval_capsnet_with_loss(model, train_loader, device, margin, reconstruction_weight)
+        val_m = eval_capsnet_with_loss(model, val_loader, device, margin, reconstruction_weight)
 
         history.append({
             "epoch": epoch,
-            "train_loss": train_loss,
-            "train_margin": train_margin,
-            "train_recon": train_recon,
-            "val_loss": val_loss,
-            "qwk": metrics["qwk"],
-            "accuracy": metrics["accuracy"],
-            "macro_f1": metrics["macro_f1"],
+            "train_loss": train_m["loss"],
+            "train_qwk": train_m["qwk"],
+            "train_accuracy": train_m["accuracy"],
+            "train_macro_f1": train_m["macro_f1"],
+            "val_loss": val_m["loss"],
+            "qwk": val_m["qwk"],
+            "accuracy": val_m["accuracy"],
+            "macro_f1": val_m["macro_f1"],
         })
 
-        if metrics["qwk"] > best_qwk:
-            best_qwk = metrics["qwk"]
-            best_metrics = metrics
+        if val_m["qwk"] > best_qwk:
+            best_qwk = val_m["qwk"]
+            best_metrics = val_m
             best_epoch = epoch
             no_improve = 0
+            best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
         else:
             no_improve += 1
 
         if verbose and (epoch == 1 or epoch % log_every == 0 or no_improve >= patience):
-            print(f"    ep {epoch:3d}  loss={train_loss:.4f}  val_loss={val_loss:.4f}  "
-                  f"qwk={metrics['qwk']:.4f}  acc={metrics['accuracy']:.4f}  "
-                  f"f1={metrics['macro_f1']:.4f}"
+            print(f"    ep {epoch:3d}  "
+                  f"train[qwk={train_m['qwk']:.4f} loss={train_m['loss']:.4f}]  "
+                  f"val[qwk={val_m['qwk']:.4f} acc={val_m['accuracy']:.4f} loss={val_m['loss']:.4f}]"
                   + (f"  *best*" if epoch == best_epoch else ""))
 
         if no_improve >= patience:
@@ -180,7 +177,11 @@ def train_one_fold(
 
     best_metrics["best_epoch"] = best_epoch
     best_metrics["final_epoch"] = history[-1]["epoch"]
-    return best_metrics, history
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
+
+    return best_metrics, history, best_state or {}
 
 
 # ---------------------------------------------------------------------------
@@ -249,36 +250,41 @@ def plot_fold_histories(fold_histories: list[list[dict]], plots_dir: Path, model
     plots_dir.mkdir(parents=True, exist_ok=True)
     safe = model_name.lower().replace(" ", "_").replace("(", "").replace(")", "")
 
+    # (train_key, val_key, filename_stem, ylabel)
     pairs = [
-        ("train_loss", "val_loss", "Loss"),
-        ("qwk", None, "QWK"),
-        ("accuracy", None, "Accuracy"),
-        ("macro_f1", None, "Macro F1"),
+        ("train_loss", "val_loss", "loss", "Loss"),
+        ("train_qwk", "qwk", "qwk", "QWK"),
+        ("train_accuracy", "accuracy", "accuracy", "Accuracy"),
+        ("train_macro_f1", "macro_f1", "macro_f1", "Macro F1"),
     ]
-    for train_key, val_key, ylabel in pairs:
+    for train_key, val_key, fname_stem, ylabel in pairs:
         fig, ax = plt.subplots(figsize=(8, 5))
         max_len = 0
         for fi, hist in enumerate(fold_histories):
             xs = [h["epoch"] for h in hist]
             ax.plot(xs, [h[train_key] for h in hist], alpha=0.3, color="C0",
                     linewidth=0.8, label="train (folds)" if fi == 0 else None)
-            if val_key:
-                ax.plot(xs, [h[val_key] for h in hist], alpha=0.3, color="C1",
-                        linewidth=0.8, label="val (folds)" if fi == 0 else None)
+            ax.plot(xs, [h[val_key] for h in hist], alpha=0.3, color="C1",
+                    linewidth=0.8, label="val (folds)" if fi == 0 else None)
             max_len = max(max_len, len(hist))
 
         mean_train = [np.mean([h[e][train_key] for h in fold_histories if e < len(h)])
                        for e in range(max_len)]
+        mean_val = [np.mean([h[e][val_key] for h in fold_histories if e < len(h)])
+                    for e in range(max_len)]
         ax.plot(range(1, len(mean_train) + 1), mean_train, color="C0", linewidth=2, label="train (mean)")
-        if val_key:
-            mean_val = [np.mean([h[e][val_key] for h in fold_histories if e < len(h)])
-                        for e in range(max_len)]
-            ax.plot(range(1, len(mean_val) + 1), mean_val, color="C1", linewidth=2, label="val (mean)")
+        ax.plot(range(1, len(mean_val) + 1), mean_val, color="C1", linewidth=2, label="val (mean)")
+
+        if mean_train and mean_val:
+            final_gap = mean_train[-1] - mean_val[-1]
+            ax.text(0.02, 0.02, f"final train-val gap: {final_gap:+.4f}",
+                    transform=ax.transAxes, fontsize=9,
+                    bbox=dict(facecolor="white", alpha=0.7, edgecolor="gray"))
 
         ax.set_xlabel("Epoch"); ax.set_ylabel(ylabel)
-        ax.set_title(f"{model_name} — {ylabel}")
+        ax.set_title(f"{model_name} — {ylabel} (train vs val)")
         ax.legend(); ax.grid(True, alpha=0.3); fig.tight_layout()
-        fig.savefig(plots_dir / f"{safe}_{train_key}.png", dpi=150)
+        fig.savefig(plots_dir / f"{safe}_{fname_stem}.png", dpi=150)
         plt.close(fig)
 
 
@@ -349,6 +355,8 @@ def main() -> None:
     batch_size = cfg["training"]["batch_size"]
     lr = cfg["training"]["lr"]
     epochs = cfg["training"]["epochs"]
+    weight_decay = cfg["training"].get("weight_decay", 1e-4)
+    holdout_frac = cfg["data"].get("holdout_split", 0.10)
     n_folds = cfg["data"]["n_folds"]
     use_decoder = args.use_decoder or cfg["model"].get("use_decoder", False)
     recon_w = cfg["model"].get("reconstruction_weight", 0.0005)
@@ -368,18 +376,38 @@ def main() -> None:
     plots_dir.mkdir(parents=True, exist_ok=True)
     print(f"Device: {device}")
     print(f"Config: feature_dim={feature_dim}, num_classes={num_classes}, "
-          f"decoder={use_decoder}, n_folds={n_folds}, epochs<={epochs}, patience={patience}\n")
+          f"decoder={use_decoder}, n_folds={n_folds}, epochs<={epochs}, "
+          f"patience={patience}, weight_decay={weight_decay}\n")
 
     # --- Load data ---
-    features = np.load(cfg["data"]["features_path"])
-    labels = np.load(cfg["data"]["labels_path"])
+    features_all = np.load(cfg["data"]["features_path"])
+    labels_all = np.load(cfg["data"]["labels_path"])
     if args.demo:
         rng = np.random.default_rng(seed)
-        idx = rng.choice(len(features), size=cfg["demo"]["n_samples"], replace=False)
-        features = features[idx]
-        labels = labels[idx]
-    print(f"Dataset: {features.shape[0]} samples, {features.shape[1]}-d features")
-    print(f"Label distribution: {np.bincount(labels, minlength=num_classes)}\n")
+        idx = rng.choice(len(features_all), size=cfg["demo"]["n_samples"], replace=False)
+        features_all = features_all[idx]
+        labels_all = labels_all[idx]
+    print(f"Dataset: {features_all.shape[0]} samples, {features_all.shape[1]}-d features")
+    print(f"Full label distribution: {np.bincount(labels_all, minlength=num_classes)}")
+
+    # --- Holdout split (frozen, same as baselines via seed) ---
+    from sklearn.model_selection import train_test_split as _tts
+    if not args.demo:
+        pool_idx, holdout_idx = _tts(
+            np.arange(len(features_all)), test_size=holdout_frac,
+            stratify=labels_all, random_state=seed,
+        )
+        features = features_all[pool_idx]
+        labels = labels_all[pool_idx]
+        X_holdout = features_all[holdout_idx]
+        y_holdout = labels_all[holdout_idx]
+        print(f"CV pool: {len(features)} samples, dist={np.bincount(labels, minlength=num_classes)}")
+        print(f"Holdout: {len(X_holdout)} samples, dist={np.bincount(y_holdout, minlength=num_classes)}\n")
+    else:
+        # Demo: skip holdout, use all demo samples for CV
+        features, labels = features_all, labels_all
+        X_holdout, y_holdout = None, None
+        print()
 
     # --- K-fold ---
     skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed) if n_folds > 1 \
@@ -413,12 +441,12 @@ def main() -> None:
 
     fold_metrics: list[dict] = []
     fold_histories: list[list[dict]] = []
+    fold_holdout_metrics: list[dict] = []
     sum_cm = np.zeros((num_classes, num_classes), dtype=np.int64)
     sanity_done = False
 
     # Construct splits (single fold for demo; stratified k-fold otherwise)
     if skf is None:
-        # Demo: 80/20 single split
         from sklearn.model_selection import train_test_split
         tr_idx, va_idx = train_test_split(
             np.arange(len(features)), test_size=0.2, stratify=labels, random_state=seed,
@@ -426,6 +454,13 @@ def main() -> None:
         splits = [(tr_idx, va_idx)]
     else:
         splits = list(skf.split(features, labels))
+
+    # Holdout loader (same for every fold in full mode)
+    holdout_loader = None
+    if X_holdout is not None:
+        _, holdout_loader = make_loaders(
+            X_holdout[:1], X_holdout, y_holdout[:1], y_holdout, batch_size,
+        )
 
     t_global = time.time()
     for fold_idx, (tr_idx, va_idx) in enumerate(splits):
@@ -438,7 +473,6 @@ def main() -> None:
         train_loader, val_loader = make_loaders(X_train, X_val, y_train, y_val, batch_size)
         model = build_model(cfg, feature_dim, num_classes, use_decoder)
 
-        # Run sanity check once, on the very first fold's first batch
         if not sanity_done:
             Xb, yb = next(iter(train_loader))
             sanity_check_pretrain(model, Xb[:8], yb[:8], num_classes, device)
@@ -446,14 +480,22 @@ def main() -> None:
 
         t0 = time.time()
         print(f"Fold {fold_idx + 1}/{len(splits)}:")
-        metrics, history = train_one_fold(
+        metrics, history, _ = train_one_fold(
             model, train_loader, val_loader, device,
             lr=lr, max_epochs=epochs, patience=patience,
             num_classes=num_classes, reconstruction_weight=recon_w,
+            weight_decay=weight_decay,
             verbose=True, log_every=max(1, epochs // 10),
         )
         t_fold = time.time() - t0
         sec_per_epoch = t_fold / metrics["final_epoch"]
+
+        # Holdout eval on best model snapshot (restored by train_one_fold)
+        holdout_m = None
+        if holdout_loader is not None:
+            margin = MarginLoss(num_classes=num_classes)
+            holdout_m = eval_capsnet_with_loss(model, holdout_loader, device, margin, recon_w)
+            fold_holdout_metrics.append(holdout_m)
 
         post_std = check_collapse_posttrain(model, val_loader, device)
 
@@ -461,35 +503,63 @@ def main() -> None:
         fold_histories.append(history)
         sum_cm += metrics["confusion_matrix"]
 
-        print(f"  -> QWK={metrics['qwk']:.4f}  Acc={metrics['accuracy']:.4f}  "
-              f"F1={metrics['macro_f1']:.4f}  (best@{metrics['best_epoch']}, "
-              f"stopped@{metrics['final_epoch']}, {sec_per_epoch:.2f}s/epoch, "
-              f"post-train length std={post_std:.4f})")
-        if post_std < 0.02:
-            print(f"  WARN: post-training length std is low ({post_std:.4f}) — "
-                  f"routing may be stuck in uniform mode\n")
+        if holdout_m is not None:
+            print(f"  -> val QWK={metrics['qwk']:.4f} Acc={metrics['accuracy']:.4f} F1={metrics['macro_f1']:.4f}"
+                  f"  |  holdout QWK={holdout_m['qwk']:.4f} Acc={holdout_m['accuracy']:.4f} F1={holdout_m['macro_f1']:.4f}"
+                  f"  (best@{metrics['best_epoch']}, stopped@{metrics['final_epoch']}, "
+                  f"{sec_per_epoch:.2f}s/ep, post-train std={post_std:.4f})")
         else:
-            print()
+            print(f"  -> val QWK={metrics['qwk']:.4f} Acc={metrics['accuracy']:.4f} F1={metrics['macro_f1']:.4f}"
+                  f"  (best@{metrics['best_epoch']}, stopped@{metrics['final_epoch']}, "
+                  f"{sec_per_epoch:.2f}s/ep, post-train std={post_std:.4f})")
+        if post_std < 0.02:
+            print(f"  WARN: post-training length std is low ({post_std:.4f})")
+        print()
 
         if use_wandb:
-            wandb.log({
-                f"fold_{fold_idx+1}/qwk": metrics["qwk"],
-                f"fold_{fold_idx+1}/accuracy": metrics["accuracy"],
-                f"fold_{fold_idx+1}/macro_f1": metrics["macro_f1"],
+            log = {
+                f"fold_{fold_idx+1}/val_qwk": metrics["qwk"],
+                f"fold_{fold_idx+1}/val_accuracy": metrics["accuracy"],
+                f"fold_{fold_idx+1}/val_macro_f1": metrics["macro_f1"],
                 f"fold_{fold_idx+1}/best_epoch": metrics["best_epoch"],
                 f"fold_{fold_idx+1}/sec_per_epoch": sec_per_epoch,
-            })
+            }
+            if holdout_m is not None:
+                log.update({
+                    f"fold_{fold_idx+1}/holdout_qwk": holdout_m["qwk"],
+                    f"fold_{fold_idx+1}/holdout_accuracy": holdout_m["accuracy"],
+                    f"fold_{fold_idx+1}/holdout_macro_f1": holdout_m["macro_f1"],
+                })
+            wandb.log(log)
 
     # --- Aggregate ---
     qwks = [m["qwk"] for m in fold_metrics]
     accs = [m["accuracy"] for m in fold_metrics]
     f1s = [m["macro_f1"] for m in fold_metrics]
+
+    # Train-val QWK gap at best epoch
+    gaps_qwk = []
+    for hist, m in zip(fold_histories, fold_metrics):
+        best_row = hist[m["best_epoch"] - 1]
+        gaps_qwk.append(best_row["train_qwk"] - best_row["qwk"])
+
     result = {
         "qwk_mean": float(np.mean(qwks)), "qwk_std": float(np.std(qwks)),
         "accuracy_mean": float(np.mean(accs)), "accuracy_std": float(np.std(accs)),
         "macro_f1_mean": float(np.mean(f1s)), "macro_f1_std": float(np.std(f1s)),
+        "train_val_qwk_gap_mean": float(np.mean(gaps_qwk)),
         "per_fold_qwk": qwks,
     }
+    if fold_holdout_metrics:
+        h_q = [m["qwk"] for m in fold_holdout_metrics]
+        h_a = [m["accuracy"] for m in fold_holdout_metrics]
+        h_f = [m["macro_f1"] for m in fold_holdout_metrics]
+        result.update({
+            "holdout_qwk_mean": float(np.mean(h_q)), "holdout_qwk_std": float(np.std(h_q)),
+            "holdout_accuracy_mean": float(np.mean(h_a)), "holdout_accuracy_std": float(np.std(h_a)),
+            "holdout_macro_f1_mean": float(np.mean(h_f)), "holdout_macro_f1_std": float(np.std(h_f)),
+            "per_fold_holdout_qwk": h_q,
+        })
 
     elapsed = time.time() - t_global
     avg_sec_per_epoch = elapsed / sum(m["final_epoch"] for m in fold_metrics)
@@ -513,15 +583,15 @@ def main() -> None:
               f"~{projected_total / 60:.1f} minutes worst case "
               f"(less with early stopping)")
     print(f"{'QWK':>16s}  {'Accuracy':>16s}  {'Macro F1':>16s}")
-    print(f"{result['qwk_mean']:.4f}+/-{result['qwk_std']:.4f}  "
+    print(f"Val:     {result['qwk_mean']:.4f}+/-{result['qwk_std']:.4f}  "
           f"{result['accuracy_mean']:.4f}+/-{result['accuracy_std']:.4f}  "
           f"{result['macro_f1_mean']:.4f}+/-{result['macro_f1_std']:.4f}")
+    if "holdout_qwk_mean" in result:
+        print(f"Holdout: {result['holdout_qwk_mean']:.4f}+/-{result['holdout_qwk_std']:.4f}  "
+              f"{result['holdout_accuracy_mean']:.4f}+/-{result['holdout_accuracy_std']:.4f}  "
+              f"{result['holdout_macro_f1_mean']:.4f}+/-{result['holdout_macro_f1_std']:.4f}")
+    print(f"Train-Val QWK gap (at best epoch, mean): {result['train_val_qwk_gap_mean']:+.4f}")
     print("=" * 70)
-
-    # Reference — Day 1
-    print("\nDay 1 baseline reference:")
-    print(f"  MLP + CE            QWK 0.8780+/-...  Acc 0.8078+/-...  F1 0.6102+/-...")
-    print(f"  MLP + MSE (Ordinal) QWK 0.8855+/-...  Acc 0.7496+/-...  F1 0.5498+/-...")
 
     # --- Plots ---
     print(f"\nGenerating plots -> {plots_dir}/")
@@ -550,19 +620,31 @@ def main() -> None:
     }, indent=2))
 
     if use_wandb and run is not None:
-        wandb.log({
-            "mean/qwk": result["qwk_mean"],
-            "mean/accuracy": result["accuracy_mean"],
-            "mean/macro_f1": result["macro_f1_mean"],
-            "std/qwk": result["qwk_std"],
-            "std/accuracy": result["accuracy_std"],
-            "std/macro_f1": result["macro_f1_std"],
-        })
-        wandb.summary.update({
+        wandb_log: dict = {
+            "mean/val_qwk": result["qwk_mean"],
+            "mean/val_accuracy": result["accuracy_mean"],
+            "mean/val_macro_f1": result["macro_f1_mean"],
+            "mean/train_val_qwk_gap": result["train_val_qwk_gap_mean"],
+        }
+        wandb_summary = {
             "qwk_mean": result["qwk_mean"], "qwk_std": result["qwk_std"],
             "accuracy_mean": result["accuracy_mean"], "accuracy_std": result["accuracy_std"],
             "macro_f1_mean": result["macro_f1_mean"], "macro_f1_std": result["macro_f1_std"],
-        })
+            "train_val_qwk_gap_mean": result["train_val_qwk_gap_mean"],
+        }
+        if "holdout_qwk_mean" in result:
+            wandb_log.update({
+                "mean/holdout_qwk": result["holdout_qwk_mean"],
+                "mean/holdout_accuracy": result["holdout_accuracy_mean"],
+                "mean/holdout_macro_f1": result["holdout_macro_f1_mean"],
+            })
+            wandb_summary.update({
+                "holdout_qwk_mean": result["holdout_qwk_mean"],
+                "holdout_accuracy_mean": result["holdout_accuracy_mean"],
+                "holdout_macro_f1_mean": result["holdout_macro_f1_mean"],
+            })
+        wandb.log(wandb_log)
+        wandb.summary.update(wandb_summary)
         for img in sorted(plots_dir.glob("*.png")):
             wandb.log({img.stem: wandb.Image(str(img))})
         run.finish()

@@ -7,12 +7,14 @@ data:
   num_classes: 5
   feature_dim: 1024
   n_folds: 5
+  holdout_split: 0.10
 
 training:
   early_stopping_patience: 30
   batch_size: 64
   lr: 0.001
   epochs: 100
+  weight_decay: 0.0001
 
 model:
   num_primary: 32
@@ -27,7 +29,7 @@ output:
 
 wandb:
   project: retfound-capsnet
-  group: day2-capsnet
+  group: day2-capsnet-holdout
   name: capsnet-vanilla
   enabled: true
 

@@ -7,17 +7,19 @@ data:
   num_classes: 5
   feature_dim: 1024
   n_folds: 5
+  holdout_split: 0.10  # 10% held out before k-fold, frozen across experiments
 
 training:
   early_stopping_patience: 30
   batch_size: 128
+  weight_decay: 0.0001
 
 output:
   plots_dir: results/baselines
 
 wandb:
   project: retfound-capsnet
-  group: day1-baselines-5fold
+  group: day1-baselines-holdout
 
 baselines:
   linear_probe_ce:
