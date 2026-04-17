@@ -1,0 +1,39 @@
+# Day 3 — Ordinal CapsNet with K-1 binary heads on cached RETFound features
+
+data:
+  features_path: data/aptos/features/train_features.npy
+  labels_path: data/aptos/features/train_labels.npy
+  seed: 42
+  num_classes: 5
+  feature_dim: 1024
+  n_folds: 5
+  holdout_split: 0.10
+
+training:
+  early_stopping_patience: 30
+  batch_size: 64
+  lr: 0.001
+  epochs: 100
+  weight_decay: 0.0001
+
+model:
+  num_primary: 32
+  primary_dim: 8
+  caps_dim: 16
+  routing_iters: 3
+  dropout: 0.1
+
+output:
+  plots_dir: results/ordinal_capsnet
+
+wandb:
+  project: retfound-capsnet
+  group: day3-ordinal-capsnet
+  name: ordinal-capsnet-vanilla
+  enabled: true
+
+demo:
+  n_samples: 500
+  n_folds: 1
+  epochs: 30
+  wandb: false
