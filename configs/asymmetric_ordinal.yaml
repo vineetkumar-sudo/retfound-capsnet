@@ -1,0 +1,42 @@
+# Day 4 — Asymmetric / tighter-margin Ordinal CapsNet
+
+data:
+  features_path: data/aptos/features/train_features.npy
+  labels_path: data/aptos/features/train_labels.npy
+  seed: 42
+  num_classes: 5
+  feature_dim: 1024
+  n_folds: 5
+  holdout_split: 0.10
+
+training:
+  early_stopping_patience: 30
+  batch_size: 64
+  lr: 0.001
+  epochs: 100
+  weight_decay: 0.0001
+
+model:
+  num_primary: 32
+  primary_dim: 8
+  caps_dim: 16
+  routing_iters: 3
+  dropout: 0.1
+
+# Asymmetric / tighter-margin loss — overridable via CLI
+loss:
+  m_plus: 0.95
+  m_minus: 0.05
+  lambda_base: 0.5
+  lambda_under: 1.0
+  lambda_over: 1.0
+  use_niu_weights: false
+
+output:
+  plots_dir: results/asymmetric_ordinal
+
+wandb:
+  project: retfound-capsnet
+  group: day4-asymmetric
+  name: asym-ordinal
+  enabled: true
