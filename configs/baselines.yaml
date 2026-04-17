@@ -1,0 +1,62 @@
+# Day 1 baseline experiments on cached RETFound features
+
+data:
+  features_path: data/aptos/features/train_features.npy
+  labels_path: data/aptos/features/train_labels.npy
+  seed: 42
+  num_classes: 5
+  feature_dim: 1024
+  n_folds: 5
+
+training:
+  early_stopping_patience: 30
+  batch_size: 128
+
+output:
+  plots_dir: results/baselines
+
+wandb:
+  project: retfound-capsnet
+  group: day1-baselines-5fold
+
+baselines:
+  linear_probe_ce:
+    name: "Linear Probe + CE"
+    type: linear
+    lr: 0.001
+    epochs: 500
+    loss: cross_entropy
+
+  mlp_ce:
+    name: "MLP + CE"
+    type: mlp
+    hidden_dims: [512, 256]
+    dropout: 0.3
+    lr: 0.001
+    epochs: 500
+    loss: cross_entropy
+
+  mlp_mse:
+    name: "MLP + MSE (Ordinal)"
+    type: mlp_regression
+    hidden_dims: [512, 256]
+    dropout: 0.3
+    lr: 0.001
+    epochs: 500
+    loss: mse
+
+  linear_probe_wce:
+    name: "Linear Probe + Weighted CE"
+    type: linear
+    lr: 0.001
+    epochs: 500
+    loss: weighted_cross_entropy
+
+  mlp_wce:
+    name: "MLP + Weighted CE"
+    type: mlp
+    hidden_dims: [512, 256]
+    dropout: 0.3
+    lr: 0.001
+    epochs: 500
+    loss: weighted_cross_entropy
