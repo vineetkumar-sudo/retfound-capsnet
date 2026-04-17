@@ -1,0 +1,38 @@
+# Day 2 — Vanilla CapsNet head on cached RETFound features
+
+data:
+  features_path: data/aptos/features/train_features.npy
+  labels_path: data/aptos/features/train_labels.npy
+  seed: 42
+  num_classes: 5
+  feature_dim: 1024
+  n_folds: 5
+
+training:
+  early_stopping_patience: 30
+  batch_size: 64
+  lr: 0.001
+  epochs: 100
+
+model:
+  num_primary: 32
+  primary_dim: 8
+  caps_dim: 16
+  routing_iters: 3
+  use_decoder: false
+  reconstruction_weight: 0.0005
+
+output:
+  plots_dir: results/capsnet
+
+wandb:
+  project: retfound-capsnet
+  group: day2-capsnet
+  name: capsnet-vanilla
+  enabled: true
+
+demo:
+  n_samples: 500
+  n_folds: 1
+  epochs: 30
+  wandb: false
