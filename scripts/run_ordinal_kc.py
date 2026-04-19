@@ -69,6 +69,27 @@ def make_loaders(X_tr, X_va, y_tr, y_va, batch_size):
 # Eval
 # ---------------------------------------------------------------------------
 
+@torch.no_grad()
+def collect_preds(model, loader, device) -> dict:
+    """Return per-sample arrays for Day 6 figures."""
+    model.eval()
+    all_lengths, all_labels = [], []
+    for X, y in loader:
+        X = X.to(device)
+        L = model(X)["head_lengths"]
+        all_lengths.append(L.cpu())
+        all_labels.append(y.cpu())
+    lengths = torch.cat(all_lengths, dim=0)
+    labels = torch.cat(all_labels, dim=0)
+    preds = predict_grade_from_heads(lengths).numpy().astype(np.int64)
+    return {
+        "y_true": labels.numpy().astype(np.int64),
+        "y_pred": preds,
+        "head_probs": lengths[:, :, 1].numpy().astype(np.float32),
+        "head_lengths": lengths.numpy().astype(np.float32),
+    }
+
+
 def eval_with_metrics(model, loader, device, margin, kc, gamma) -> dict:
     model.eval()
     all_lengths, all_labels = [], []
@@ -248,70 +269,41 @@ def parse_args() -> argparse.Namespace:
                    help="Run only fold N (for sweep); skip holdout eval")
     p.add_argument("--no-wandb", action="store_true")
     p.add_argument("--epochs", type=int, default=None, help="Override max epochs")
+    p.add_argument("--seeds", default=None,
+                   help="Comma-separated model-init seeds. Outputs go to plots_dir/seed{S}/ when != data_seed.")
     return p.parse_args()
 
 
-def main() -> None:
-    args = parse_args()
-    cfg = load_config(args.config)
-    device = get_device()
+def parse_seeds(arg: str | None, default_seed: int) -> list[int]:
+    if arg is None:
+        return [default_seed]
+    return [int(s) for s in arg.split(",") if s.strip()]
 
-    seed = cfg["data"]["seed"]
+
+def run_one_seed(
+    cfg: dict, args, model_seed: int, device: torch.device,
+    features, labels, X_holdout, y_holdout, splits,
+    margin: OrdinalMarginLoss, kc: KCLoss, gamma: float,
+    seed_plots_dir: Path, seed_suffix: str, name: str,
+    use_wandb: bool, wandb_cfg: dict,
+) -> dict:
     feature_dim = cfg["data"]["feature_dim"]
     num_classes = cfg["data"]["num_classes"]
-    n_folds = cfg["data"]["n_folds"]
-    holdout_frac = cfg["data"].get("holdout_split", 0.10)
-    patience = cfg["training"]["early_stopping_patience"]
     batch_size = cfg["training"]["batch_size"]
     lr = cfg["training"]["lr"]
     epochs = args.epochs if args.epochs else cfg["training"]["epochs"]
+    patience = cfg["training"]["early_stopping_patience"]
     weight_decay = cfg["training"].get("weight_decay", 1e-4)
 
-    gamma = args.gamma
-    use_wandb = (not args.no_wandb) and args.fold_only is None
-
-    suffix = args.name_suffix or f"kc_gamma_{gamma:.2f}".replace(".", "p")
-    name = f"ordinal-kc-{suffix}"
-    plots_dir = Path("results/ordinal_kc") / suffix
-
     if args.fold_only is None:
-        plots_dir.mkdir(parents=True, exist_ok=True)
-    print(f"Device: {device}  gamma={gamma}  suffix={suffix}")
-
-    # Data
-    features_all = np.load(cfg["data"]["features_path"])
-    labels_all = np.load(cfg["data"]["labels_path"])
-    pool_idx, holdout_idx = train_test_split(
-        np.arange(len(features_all)), test_size=holdout_frac,
-        stratify=labels_all, random_state=seed,
-    )
-    features = features_all[pool_idx]
-    labels = labels_all[pool_idx]
-    X_holdout, y_holdout = features_all[holdout_idx], labels_all[holdout_idx]
-    print(f"CV pool: {len(features)}, Holdout: {len(X_holdout)}")
-
-    skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
-    splits = list(skf.split(features, labels))
-
-    if args.fold_only is not None:
-        splits = [splits[args.fold_only]]
-        print(f"FOLD-ONLY mode: fold {args.fold_only}")
-
-    margin = OrdinalMarginLoss(num_classes=num_classes)
-    kc = KCLoss(num_classes=num_classes)
+        seed_plots_dir.mkdir(parents=True, exist_ok=True)
+    run_name = f"{name}{seed_suffix}"
 
     run = None
     if use_wandb:
         run = wandb.init(
-            project=cfg["wandb"]["project"], group="day5-ordinal-kc", name=name,
-            config={
-                "model": "OrdinalCapsNet + KC Loss",
-                **{k: v for k, v in cfg["model"].items()},
-                "gamma": gamma,
-                "lr": lr, "batch_size": batch_size, "epochs": epochs,
-                "patience": patience, "n_folds": n_folds, "seed": seed,
-                "weight_decay": weight_decay, "holdout_frac": holdout_frac,
-            },
+            project=cfg["wandb"]["project"], group="day5-ordinal-kc", name=run_name,
+            config={**wandb_cfg, "model_seed": model_seed},
             reinit="finish_previous",
         )
 
@@ -327,8 +319,8 @@ def main() -> None:
         fold_idx = args.fold_only if args.fold_only is not None else fold_idx_rel
         X_tr, X_va = features[tr_idx], features[va_idx]
         y_tr, y_va = labels[tr_idx], labels[va_idx]
-        torch.manual_seed(seed + fold_idx)
-        np.random.seed(seed + fold_idx)
+        torch.manual_seed(model_seed + fold_idx)
+        np.random.seed(model_seed + fold_idx)
 
         tr_loader, va_loader = make_loaders(X_tr, X_va, y_tr, y_va, batch_size)
         model = OrdinalCapsNet(
@@ -342,13 +334,25 @@ def main() -> None:
         )
 
         t0 = time.time()
-        print(f"\nFold {fold_idx + 1}/{n_folds}:")
+        print(f"\nFold {fold_idx + 1}/{cfg['data']['n_folds']} (model_seed={model_seed}):")
         metrics, history = train_one_fold(
             model, tr_loader, va_loader, device, margin, kc, gamma,
             lr=lr, max_epochs=epochs, patience=patience, weight_decay=weight_decay,
             verbose=True, log_every=max(1, epochs // 10),
         )
         sec_per_epoch = (time.time() - t0) / metrics["final_epoch"]
+
+        if args.fold_only is None:
+            val_preds = collect_preds(model, va_loader, device)
+            hold_preds = collect_preds(model, holdout_loader, device)
+            np.savez_compressed(
+                seed_plots_dir / f"preds_fold{fold_idx + 1}.npz",
+                y_true=val_preds["y_true"], y_pred=val_preds["y_pred"],
+                head_probs=val_preds["head_probs"], head_lengths=val_preds["head_lengths"],
+                holdout_y_true=hold_preds["y_true"], holdout_y_pred=hold_preds["y_pred"],
+                holdout_head_probs=hold_preds["head_probs"],
+                holdout_head_lengths=hold_preds["head_lengths"],
+            )
 
         holdout_m = None
         if holdout_loader is not None:
@@ -384,7 +388,6 @@ def main() -> None:
 
     elapsed = time.time() - t_global
 
-    # Aggregates (only meaningful if we ran all folds)
     qwks = [m["qwk"] for m in fold_metrics]
     accs = [m["accuracy"] for m in fold_metrics]
     f1s = [m["macro_f1"] for m in fold_metrics]
@@ -411,9 +414,8 @@ def main() -> None:
             "holdout_macro_f1_mean": float(np.mean(h_f)), "holdout_macro_f1_std": float(np.std(h_f)),
         })
 
-    print()
     print("=" * 80)
-    print(f"{name} — {len(splits)}-fold — {elapsed:.1f}s (gamma={gamma})")
+    print(f"{name} — seed={model_seed} — {len(splits)}-fold — {elapsed:.1f}s (gamma={gamma})")
     print("=" * 80)
     print(f"Val:     QWK={result['qwk_mean']:.4f}+/-{result['qwk_std']:.4f}  "
           f"Acc={result['accuracy_mean']:.4f}+/-{result['accuracy_std']:.4f}  "
@@ -422,26 +424,22 @@ def main() -> None:
         print(f"Holdout: QWK={result['holdout_qwk_mean']:.4f}+/-{result['holdout_qwk_std']:.4f}  "
               f"Acc={result['holdout_accuracy_mean']:.4f}+/-{result['holdout_accuracy_std']:.4f}  "
               f"F1={result['holdout_macro_f1_mean']:.4f}+/-{result['holdout_macro_f1_std']:.4f}")
-    grades = ["G0 (No DR)", "G1 (Mild)", "G2 (Moderate)", "G3 (Severe)", "G4 (PDR)"]
-    print("\nPer-grade accuracy:")
-    for i, g in enumerate(grades):
-        print(f"  {g:<16s}  {result['per_grade_acc_mean'][i]:.4f} +/- {result['per_grade_acc_std'][i]:.4f}")
     print("=" * 80)
 
     if args.fold_only is None:
-        plot_fold_histories(fold_histories, plots_dir, name)
-        plot_confusion_matrix(sum_cm, plots_dir, name)
-        (plots_dir / "summary.json").write_text(json.dumps({
-            "model": name, "gamma": gamma, "result": result,
+        plot_fold_histories(fold_histories, seed_plots_dir, name)
+        plot_confusion_matrix(sum_cm, seed_plots_dir, name)
+        (seed_plots_dir / "summary.json").write_text(json.dumps({
+            "model": name, "gamma": gamma, "model_seed": model_seed, "result": result,
         }, indent=2))
-        print(f"\nSaved plots and summary.json -> {plots_dir}/")
+        print(f"\nSaved plots and summary.json -> {seed_plots_dir}/")
 
     if use_wandb and run is not None:
         wandb_summary = {
             "qwk_mean": result["qwk_mean"], "qwk_std": result["qwk_std"],
             "accuracy_mean": result["accuracy_mean"], "accuracy_std": result["accuracy_std"],
             "macro_f1_mean": result["macro_f1_mean"], "macro_f1_std": result["macro_f1_std"],
-            "gamma": gamma,
+            "gamma": gamma, "model_seed": model_seed,
             "grade_1_acc": result["per_grade_acc_mean"][1],
             "grade_3_acc": result["per_grade_acc_mean"][3],
         }
@@ -452,9 +450,107 @@ def main() -> None:
                 "holdout_macro_f1_mean": result["holdout_macro_f1_mean"],
             })
         wandb.summary.update(wandb_summary)
-        for img in sorted(plots_dir.glob("*.png")):
+        for img in sorted(seed_plots_dir.glob("*.png")):
             wandb.log({img.stem: wandb.Image(str(img))})
         run.finish()
+
+    return result
+
+
+def main() -> None:
+    args = parse_args()
+    cfg = load_config(args.config)
+    device = get_device()
+
+    data_seed = cfg["data"]["seed"]
+    model_seeds = parse_seeds(args.seeds, data_seed)
+    num_classes = cfg["data"]["num_classes"]
+    n_folds = cfg["data"]["n_folds"]
+    holdout_frac = cfg["data"].get("holdout_split", 0.10)
+    batch_size = cfg["training"]["batch_size"]
+    lr = cfg["training"]["lr"]
+    patience = cfg["training"]["early_stopping_patience"]
+    epochs = args.epochs if args.epochs else cfg["training"]["epochs"]
+    weight_decay = cfg["training"].get("weight_decay", 1e-4)
+
+    gamma = args.gamma
+    use_wandb = (not args.no_wandb) and args.fold_only is None
+
+    suffix = args.name_suffix or f"kc_gamma_{gamma:.2f}".replace(".", "p")
+    name = f"ordinal-kc-{suffix}"
+    variant_dir = Path("results/ordinal_kc") / suffix
+
+    if args.fold_only is None:
+        variant_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Device: {device}  gamma={gamma}  suffix={suffix}")
+    print(f"Data seed: {data_seed}  |  Model seeds: {model_seeds}")
+
+    # Data + splits (governed by data_seed)
+    features_all = np.load(cfg["data"]["features_path"])
+    labels_all = np.load(cfg["data"]["labels_path"])
+    pool_idx, holdout_idx = train_test_split(
+        np.arange(len(features_all)), test_size=holdout_frac,
+        stratify=labels_all, random_state=data_seed,
+    )
+    features = features_all[pool_idx]
+    labels = labels_all[pool_idx]
+    X_holdout, y_holdout = features_all[holdout_idx], labels_all[holdout_idx]
+    print(f"CV pool: {len(features)}, Holdout: {len(X_holdout)}")
+
+    skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=data_seed)
+    splits = list(skf.split(features, labels))
+
+    if args.fold_only is not None:
+        splits = [splits[args.fold_only]]
+        print(f"FOLD-ONLY mode: fold {args.fold_only}")
+
+    margin = OrdinalMarginLoss(num_classes=num_classes)
+    kc = KCLoss(num_classes=num_classes)
+
+    wandb_cfg = {
+        "model": "OrdinalCapsNet + KC Loss",
+        **{k: v for k, v in cfg["model"].items()},
+        "gamma": gamma,
+        "lr": lr, "batch_size": batch_size, "epochs": epochs,
+        "patience": patience, "n_folds": n_folds, "data_seed": data_seed,
+        "weight_decay": weight_decay, "holdout_frac": holdout_frac,
+    }
+
+    is_default_single = (args.seeds is None and len(model_seeds) == 1 and model_seeds[0] == data_seed)
+    per_seed_results: list[dict] = []
+    for model_seed in model_seeds:
+        if is_default_single:
+            seed_dir, seed_suffix = variant_dir, ""
+        else:
+            seed_dir, seed_suffix = variant_dir / f"seed{model_seed}", f"-seed{model_seed}"
+
+        result = run_one_seed(
+            cfg, args, model_seed, device,
+            features, labels, X_holdout, y_holdout, splits,
+            margin=margin, kc=kc, gamma=gamma,
+            seed_plots_dir=seed_dir, seed_suffix=seed_suffix,
+            name=name, use_wandb=use_wandb, wandb_cfg=wandb_cfg,
+        )
+        per_seed_results.append({"model_seed": model_seed, "result": result})
+
+    if len(model_seeds) > 1 and args.fold_only is None:
+        pooled = {}
+        for key in ("qwk", "accuracy", "macro_f1"):
+            vals = [r["result"][f"{key}_mean"] for r in per_seed_results]
+            pooled[f"{key}_mean"] = float(np.mean(vals))
+            pooled[f"{key}_std_across_seeds"] = float(np.std(vals))
+        if all("holdout_qwk_mean" in r["result"] for r in per_seed_results):
+            for key in ("holdout_qwk", "holdout_accuracy", "holdout_macro_f1"):
+                vals = [r["result"][f"{key}_mean"] for r in per_seed_results]
+                pooled[f"{key}_mean"] = float(np.mean(vals))
+                pooled[f"{key}_std_across_seeds"] = float(np.std(vals))
+        (variant_dir / "summary_multiseed.json").write_text(json.dumps({
+            "model": name, "gamma": gamma,
+            "model_seeds": model_seeds, "data_seed": data_seed,
+            "per_seed": per_seed_results,
+            "pooled_across_seeds": pooled,
+        }, indent=2))
+        print(f"\nMulti-seed pooled summary -> {variant_dir}/summary_multiseed.json")
 
 
 if __name__ == "__main__":

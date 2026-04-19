@@ -68,6 +68,26 @@ def make_loaders(
 # Evaluation
 # ---------------------------------------------------------------------------
 
+@torch.no_grad()
+def collect_preds(model: CapsNet, loader: DataLoader, device: torch.device) -> dict:
+    """Return per-sample arrays for Day 6 figures. y_pred is argmax over capsule lengths."""
+    model.eval()
+    all_lengths, all_labels = [], []
+    for X, y in loader:
+        X = X.to(device)
+        out = model(X)
+        all_lengths.append(out["lengths"].cpu())
+        all_labels.append(y.cpu())
+    lengths = torch.cat(all_lengths, dim=0)
+    labels = torch.cat(all_labels, dim=0)
+    preds = lengths.argmax(dim=1).numpy().astype(np.int64)
+    return {
+        "y_true": labels.numpy().astype(np.int64),
+        "y_pred": preds,
+        "class_lengths": lengths.numpy().astype(np.float32),
+    }
+
+
 def eval_capsnet_with_loss(
     model: CapsNet, loader: DataLoader, device: torch.device,
     margin: MarginLoss, reconstruction_weight: float,
@@ -499,6 +519,22 @@ def main() -> None:
 
         post_std = check_collapse_posttrain(model, val_loader, device)
 
+        # Save per-fold preds for Day 6 confusion matrix (Figure A)
+        val_preds = collect_preds(model, val_loader, device)
+        npz_payload = {
+            "y_true": val_preds["y_true"],
+            "y_pred": val_preds["y_pred"],
+            "class_lengths": val_preds["class_lengths"],
+        }
+        if holdout_loader is not None:
+            hold_preds = collect_preds(model, holdout_loader, device)
+            npz_payload.update({
+                "holdout_y_true": hold_preds["y_true"],
+                "holdout_y_pred": hold_preds["y_pred"],
+                "holdout_class_lengths": hold_preds["class_lengths"],
+            })
+        np.savez_compressed(plots_dir / f"preds_fold{fold_idx + 1}.npz", **npz_payload)
+
         fold_metrics.append(metrics)
         fold_histories.append(history)
         sum_cm += metrics["confusion_matrix"]
@@ -601,6 +637,9 @@ def main() -> None:
 
     # --- Save per-fold raw numbers ---
     import json
+    (plots_dir / "fold_histories.json").write_text(json.dumps({
+        "fold_histories": fold_histories,
+    }, indent=2))
     (plots_dir / "summary.json").write_text(json.dumps({
         "model": name,
         "config": {

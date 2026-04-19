@@ -92,8 +92,11 @@ def eval_with_loss(model, loader, device, criterion, is_regression: bool) -> dic
         "qwk": cohen_kappa_score(lbls, preds, weights="quadratic"),
         "accuracy": accuracy_score(lbls, preds),
         "macro_f1": f1_score(lbls, preds, average="macro"),
+        "mae": float(np.abs(lbls - preds).mean()),
         "confusion_matrix": confusion_matrix(lbls, preds, labels=range(5)),
         "loss": loss_sum / n,
+        "_y_true": lbls,
+        "_y_pred": preds,
     }
 
 
@@ -460,6 +463,18 @@ def main():
                 criterion_h = nn.CrossEntropyLoss()
             holdout_m = eval_with_loss(model, holdout_loader, device, criterion_h, is_reg)
 
+            # Save per-fold preds for Day 6 MAE + confusion matrices
+            safe_name = name.lower().replace(" ", "_").replace("+", "_").replace("__", "_")
+            np.savez_compressed(
+                plots_dir / f"preds_{safe_name}_fold{fold_idx + 1}.npz",
+                y_true=metrics["_y_true"], y_pred=metrics["_y_pred"],
+                holdout_y_true=holdout_m["_y_true"], holdout_y_pred=holdout_m["_y_pred"],
+            )
+            # Strip prediction arrays before storing metrics dict
+            for d in (metrics, holdout_m):
+                d.pop("_y_true", None)
+                d.pop("_y_pred", None)
+
             fold_metrics.append(metrics)
             fold_histories.append(history)
             fold_holdout_metrics.append(holdout_m)
@@ -483,9 +498,11 @@ def main():
         qwks = [m["qwk"] for m in fold_metrics]
         accs = [m["accuracy"] for m in fold_metrics]
         f1s = [m["macro_f1"] for m in fold_metrics]
+        maes = [m["mae"] for m in fold_metrics]
         h_qwks = [m["qwk"] for m in fold_holdout_metrics]
         h_accs = [m["accuracy"] for m in fold_holdout_metrics]
         h_f1s = [m["macro_f1"] for m in fold_holdout_metrics]
+        h_maes = [m["mae"] for m in fold_holdout_metrics]
 
         # Also capture train-val gap at best epoch (overfitting diagnostic)
         gaps_qwk = []
@@ -497,9 +514,11 @@ def main():
             "qwk_mean": float(np.mean(qwks)), "qwk_std": float(np.std(qwks)),
             "accuracy_mean": float(np.mean(accs)), "accuracy_std": float(np.std(accs)),
             "macro_f1_mean": float(np.mean(f1s)), "macro_f1_std": float(np.std(f1s)),
+            "mae_mean": float(np.mean(maes)), "mae_std": float(np.std(maes)),
             "holdout_qwk_mean": float(np.mean(h_qwks)), "holdout_qwk_std": float(np.std(h_qwks)),
             "holdout_accuracy_mean": float(np.mean(h_accs)), "holdout_accuracy_std": float(np.std(h_accs)),
             "holdout_macro_f1_mean": float(np.mean(h_f1s)), "holdout_macro_f1_std": float(np.std(h_f1s)),
+            "holdout_mae_mean": float(np.mean(h_maes)), "holdout_mae_std": float(np.std(h_maes)),
             "train_val_qwk_gap_mean": float(np.mean(gaps_qwk)),
             "per_fold_qwk": qwks,
             "per_fold_holdout_qwk": h_qwks,

@@ -66,6 +66,27 @@ def make_loaders(X_tr, X_va, y_tr, y_va, batch_size):
 # Eval with per-head + per-grade accuracy + asymmetry ratio
 # ---------------------------------------------------------------------------
 
+@torch.no_grad()
+def collect_preds(model, loader, device) -> dict:
+    """Return per-sample arrays for Day 6 figures (y_true, y_pred, head_probs, head_lengths)."""
+    model.eval()
+    all_lengths, all_labels = [], []
+    for X, y in loader:
+        X = X.to(device)
+        L = model(X)["head_lengths"]
+        all_lengths.append(L.cpu())
+        all_labels.append(y.cpu())
+    lengths = torch.cat(all_lengths, dim=0)
+    labels = torch.cat(all_labels, dim=0)
+    preds = predict_grade_from_heads(lengths).numpy().astype(np.int64)
+    return {
+        "y_true": labels.numpy().astype(np.int64),
+        "y_pred": preds,
+        "head_probs": lengths[:, :, 1].numpy().astype(np.float32),
+        "head_lengths": lengths.numpy().astype(np.float32),
+    }
+
+
 def eval_ordinal(model, loader, device, loss_fn) -> dict:
     model.eval()
     all_lengths, all_labels, loss_sum, n = [], [], 0.0, 0
@@ -255,91 +276,41 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--name-suffix", type=str, default=None,
                    help="Appended to wandb run name and output subdir")
     p.add_argument("--no-wandb", action="store_true")
+    p.add_argument("--seeds", default=None,
+                   help="Comma-separated model-init seeds. If set and != data_seed, outputs go to plots_dir/seed{S}/.")
     return p.parse_args()
 
 
-def main() -> None:
-    args = parse_args()
-    cfg = load_config(args.config)
-    device = get_device()
+def parse_seeds(arg: str | None, default_seed: int) -> list[int]:
+    if arg is None:
+        return [default_seed]
+    return [int(s) for s in arg.split(",") if s.strip()]
 
-    seed = cfg["data"]["seed"]
+
+def run_one_seed(
+    cfg: dict, args, model_seed: int, device: torch.device,
+    features, labels, X_holdout, y_holdout, splits,
+    loss_factory, per_head_weights,
+    seed_plots_dir: Path, seed_suffix: str, name: str,
+    use_wandb: bool, wandb_cfg: dict,
+) -> dict:
+    """Run one model-init seed over all folds. Writes per-fold preds, summary, plots."""
     feature_dim = cfg["data"]["feature_dim"]
     num_classes = cfg["data"]["num_classes"]
-    n_folds = cfg["data"]["n_folds"]
-    holdout_frac = cfg["data"].get("holdout_split", 0.10)
-    patience = cfg["training"]["early_stopping_patience"]
     batch_size = cfg["training"]["batch_size"]
     lr = cfg["training"]["lr"]
     epochs = cfg["training"]["epochs"]
+    patience = cfg["training"]["early_stopping_patience"]
     weight_decay = cfg["training"].get("weight_decay", 1e-4)
 
-    # Loss hyperparams — CLI overrides YAML
-    lcfg = cfg.get("loss", {})
-    m_plus = args.m_plus if args.m_plus is not None else lcfg.get("m_plus", 0.9)
-    m_minus = args.m_minus if args.m_minus is not None else lcfg.get("m_minus", 0.1)
-    lambda_base = lcfg.get("lambda_base", 0.5)
-    lambda_under = args.lambda_under if args.lambda_under is not None else lcfg.get("lambda_under", 1.0)
-    lambda_over = args.lambda_over if args.lambda_over is not None else lcfg.get("lambda_over", 1.0)
-    use_niu = args.use_niu or lcfg.get("use_niu_weights", False)
-
-    use_wandb = cfg["wandb"].get("enabled", True) and not args.no_wandb
-    base_name = cfg["wandb"]["name"]
-    name = f"{base_name}-{args.name_suffix}" if args.name_suffix else base_name
-    plots_dir = Path(cfg["output"]["plots_dir"]) / (args.name_suffix or "default")
-    plots_dir.mkdir(parents=True, exist_ok=True)
-
-    print(f"Device: {device}")
-    print(f"Loss config: m+={m_plus}, m-={m_minus}, "
-          f"lambda_under={lambda_under}, lambda_over={lambda_over}, use_niu={use_niu}")
-    print(f"Output: {plots_dir}/\n")
-
-    # Data
-    features_all = np.load(cfg["data"]["features_path"])
-    labels_all = np.load(cfg["data"]["labels_path"])
-    pool_idx, holdout_idx = train_test_split(
-        np.arange(len(features_all)), test_size=holdout_frac,
-        stratify=labels_all, random_state=seed,
-    )
-    features = features_all[pool_idx]
-    labels = labels_all[pool_idx]
-    X_holdout, y_holdout = features_all[holdout_idx], labels_all[holdout_idx]
-    print(f"CV pool: {len(features)} samples  |  Holdout: {len(X_holdout)}")
-    print(f"Label dist (pool): {np.bincount(labels)}\n")
-
-    # Compute per-head weights once on the full pool (consistent across folds)
-    per_head_weights = None
-    if use_niu:
-        per_head_weights = compute_niu_weights(labels, num_classes=num_classes)
-        print(f"Niu per-head weights: {[f'{w:.3f}' for w in per_head_weights]}\n")
-
-    def make_loss() -> AsymmetricOrdinalMarginLoss:
-        return AsymmetricOrdinalMarginLoss(
-            num_classes=num_classes,
-            m_plus=m_plus, m_minus=m_minus, lambda_base=lambda_base,
-            lambda_under=lambda_under, lambda_over=lambda_over,
-            per_head_weights=per_head_weights,
-        )
-
-    skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
-    splits = list(skf.split(features, labels))
+    seed_plots_dir.mkdir(parents=True, exist_ok=True)
+    run_name = f"{name}{seed_suffix}"
 
     run = None
     if use_wandb:
         run = wandb.init(
-            project=cfg["wandb"]["project"], group=cfg["wandb"]["group"], name=name,
-            config={
-                "model": "OrdinalCapsNet + AsymmetricMargin",
-                **{k: v for k, v in cfg["model"].items()},
-                "m_plus": m_plus, "m_minus": m_minus,
-                "lambda_base": lambda_base,
-                "lambda_under": lambda_under, "lambda_over": lambda_over,
-                "use_niu_weights": use_niu,
-                "per_head_weights": per_head_weights,
-                "lr": lr, "batch_size": batch_size, "epochs": epochs,
-                "patience": patience, "n_folds": n_folds, "seed": seed,
-                "weight_decay": weight_decay, "holdout_frac": holdout_frac,
-            },
+            project=cfg["wandb"]["project"], group=cfg["wandb"]["group"], name=run_name,
+            config={**wandb_cfg, "model_seed": model_seed},
             reinit="finish_previous",
         )
 
@@ -353,8 +324,8 @@ def main() -> None:
         X_tr, X_va = features[tr_idx], features[va_idx]
         y_tr, y_va = labels[tr_idx], labels[va_idx]
 
-        torch.manual_seed(seed + fold_idx)
-        np.random.seed(seed + fold_idx)
+        torch.manual_seed(model_seed + fold_idx)
+        np.random.seed(model_seed + fold_idx)
 
         tr_loader, va_loader = make_loaders(X_tr, X_va, y_tr, y_va, batch_size)
         model = OrdinalCapsNet(
@@ -366,16 +337,28 @@ def main() -> None:
             routing_iters=cfg["model"]["routing_iters"],
             dropout=cfg["model"].get("dropout", 0.0),
         )
-        loss_fn = make_loss()
+        loss_fn = loss_factory()
 
         t0 = time.time()
-        print(f"Fold {fold_idx + 1}/{n_folds}:")
+        print(f"Fold {fold_idx + 1}/{len(splits)} (model_seed={model_seed}):")
         metrics, history = train_one_fold(
             model, tr_loader, va_loader, device, loss_fn,
             lr=lr, max_epochs=epochs, patience=patience, weight_decay=weight_decay,
             verbose=True, log_every=max(1, epochs // 10),
         )
         sec_per_epoch = (time.time() - t0) / metrics["final_epoch"]
+
+        # Per-fold predictions (best-state)
+        val_preds = collect_preds(model, va_loader, device)
+        hold_preds = collect_preds(model, holdout_loader, device)
+        np.savez_compressed(
+            seed_plots_dir / f"preds_fold{fold_idx + 1}.npz",
+            y_true=val_preds["y_true"], y_pred=val_preds["y_pred"],
+            head_probs=val_preds["head_probs"], head_lengths=val_preds["head_lengths"],
+            holdout_y_true=hold_preds["y_true"], holdout_y_pred=hold_preds["y_pred"],
+            holdout_head_probs=hold_preds["head_probs"],
+            holdout_head_lengths=hold_preds["head_lengths"],
+        )
 
         holdout_m = eval_ordinal(model, holdout_loader, device, loss_fn)
         fold_holdout.append(holdout_m)
@@ -413,7 +396,7 @@ def main() -> None:
                 log[f"fold_{fold_idx+1}/grade_{k}_acc"] = acc
             wandb.log(log)
 
-    # Aggregate
+    # Aggregate across folds
     qwks = [m["qwk"] for m in fold_metrics]
     accs = [m["accuracy"] for m in fold_metrics]
     f1s = [m["macro_f1"] for m in fold_metrics]
@@ -453,7 +436,7 @@ def main() -> None:
 
     elapsed = time.time() - t_global
     print("=" * 80)
-    print(f"{name} — 5-fold CV — {elapsed:.1f}s")
+    print(f"{name} — seed={model_seed} — {len(splits)}-fold CV — {elapsed:.1f}s")
     print("=" * 80)
     print(f"Val:     QWK={result['qwk_mean']:.4f}+/-{result['qwk_std']:.4f}  "
           f"Acc={result['accuracy_mean']:.4f}+/-{result['accuracy_std']:.4f}  "
@@ -463,44 +446,30 @@ def main() -> None:
           f"Acc={result['holdout_accuracy_mean']:.4f}+/-{result['holdout_accuracy_std']:.4f}  "
           f"F1={result['holdout_macro_f1_mean']:.4f}+/-{result['holdout_macro_f1_std']:.4f}  "
           f"U/O={result['holdout_asym_ratio_mean']:.3f}")
-    print(f"Train-Val QWK gap (at best epoch, mean): {result['train_val_qwk_gap_mean']:+.4f}")
-    print()
-    grades = ["G0 (No DR)", "G1 (Mild)", "G2 (Moderate)", "G3 (Severe)", "G4 (PDR)"]
-    print("Per-grade accuracy (5-fold mean +/- std):")
-    for i, g in enumerate(grades):
-        print(f"  {g:<16s}  {result['per_grade_acc_mean'][i]:.4f} +/- {result['per_grade_acc_std'][i]:.4f}")
-    print()
-    heads = ["y>0", "y>1", "y>2", "y>3"]
-    print("Per-head binary accuracy:")
-    for i, h in enumerate(heads):
-        print(f"  {h:<6s}  {result['per_head_acc_mean'][i]:.4f} +/- {result['per_head_acc_std'][i]:.4f}")
     print("=" * 80)
 
-    print(f"\nGenerating plots -> {plots_dir}/")
-    plot_fold_histories(fold_histories, plots_dir, name)
-    plot_confusion_matrix(sum_cm, plots_dir, name)
-    plot_per_head_acc(result["per_head_acc_mean"], result["per_head_acc_std"], plots_dir, name)
+    print(f"\nGenerating plots -> {seed_plots_dir}/")
+    plot_fold_histories(fold_histories, seed_plots_dir, name)
+    plot_confusion_matrix(sum_cm, seed_plots_dir, name)
+    plot_per_head_acc(result["per_head_acc_mean"], result["per_head_acc_std"], seed_plots_dir, name)
 
-    (plots_dir / "summary.json").write_text(json.dumps({
+    lcfg = cfg.get("loss", {})
+    (seed_plots_dir / "summary.json").write_text(json.dumps({
         "model": name,
+        "model_seed": model_seed,
         "loss": {
-            "m_plus": m_plus, "m_minus": m_minus, "lambda_base": lambda_base,
-            "lambda_under": lambda_under, "lambda_over": lambda_over,
-            "use_niu": use_niu, "per_head_weights": per_head_weights,
+            "m_plus": args.m_plus if args.m_plus is not None else lcfg.get("m_plus", 0.9),
+            "m_minus": args.m_minus if args.m_minus is not None else lcfg.get("m_minus", 0.1),
+            "lambda_base": lcfg.get("lambda_base", 0.5),
+            "lambda_under": args.lambda_under if args.lambda_under is not None else lcfg.get("lambda_under", 1.0),
+            "lambda_over": args.lambda_over if args.lambda_over is not None else lcfg.get("lambda_over", 1.0),
+            "use_niu": args.use_niu or lcfg.get("use_niu_weights", False),
+            "per_head_weights": per_head_weights,
         },
         "result": result,
     }, indent=2))
 
     if use_wandb and run is not None:
-        wandb.log({
-            "mean/val_qwk": result["qwk_mean"],
-            "mean/val_accuracy": result["accuracy_mean"],
-            "mean/val_macro_f1": result["macro_f1_mean"],
-            "mean/holdout_qwk": result["holdout_qwk_mean"],
-            "mean/holdout_accuracy": result["holdout_accuracy_mean"],
-            "mean/asym_ratio": result["asym_ratio_mean"],
-            "mean/train_val_qwk_gap": result["train_val_qwk_gap_mean"],
-        })
         wandb.summary.update({
             "qwk_mean": result["qwk_mean"], "qwk_std": result["qwk_std"],
             "accuracy_mean": result["accuracy_mean"], "accuracy_std": result["accuracy_std"],
@@ -509,15 +478,124 @@ def main() -> None:
             "holdout_accuracy_mean": result["holdout_accuracy_mean"],
             "holdout_macro_f1_mean": result["holdout_macro_f1_mean"],
             "asym_ratio_mean": result["asym_ratio_mean"],
-            "train_val_qwk_gap_mean": result["train_val_qwk_gap_mean"],
-            "grade_1_acc_mean": result["per_grade_acc_mean"][1],
-            "grade_3_acc_mean": result["per_grade_acc_mean"][3],
+            "model_seed": model_seed,
         })
-        for img in sorted(plots_dir.glob("*.png")):
+        for img in sorted(seed_plots_dir.glob("*.png")):
             wandb.log({img.stem: wandb.Image(str(img))})
         run.finish()
 
-    print(f"\nDone. Results JSON at {plots_dir}/summary.json")
+    return result
+
+
+def main() -> None:
+    args = parse_args()
+    cfg = load_config(args.config)
+    device = get_device()
+
+    data_seed = cfg["data"]["seed"]
+    model_seeds = parse_seeds(args.seeds, data_seed)
+    feature_dim = cfg["data"]["feature_dim"]
+    num_classes = cfg["data"]["num_classes"]
+    n_folds = cfg["data"]["n_folds"]
+    holdout_frac = cfg["data"].get("holdout_split", 0.10)
+    patience = cfg["training"]["early_stopping_patience"]
+    batch_size = cfg["training"]["batch_size"]
+    lr = cfg["training"]["lr"]
+    epochs = cfg["training"]["epochs"]
+    weight_decay = cfg["training"].get("weight_decay", 1e-4)
+
+    # Loss hyperparams — CLI overrides YAML
+    lcfg = cfg.get("loss", {})
+    m_plus = args.m_plus if args.m_plus is not None else lcfg.get("m_plus", 0.9)
+    m_minus = args.m_minus if args.m_minus is not None else lcfg.get("m_minus", 0.1)
+    lambda_base = lcfg.get("lambda_base", 0.5)
+    lambda_under = args.lambda_under if args.lambda_under is not None else lcfg.get("lambda_under", 1.0)
+    lambda_over = args.lambda_over if args.lambda_over is not None else lcfg.get("lambda_over", 1.0)
+    use_niu = args.use_niu or lcfg.get("use_niu_weights", False)
+
+    use_wandb = cfg["wandb"].get("enabled", True) and not args.no_wandb
+    base_name = cfg["wandb"]["name"]
+    name = f"{base_name}-{args.name_suffix}" if args.name_suffix else base_name
+    variant_dir = Path(cfg["output"]["plots_dir"]) / (args.name_suffix or "default")
+    variant_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"Device: {device}")
+    print(f"Loss config: m+={m_plus}, m-={m_minus}, "
+          f"lambda_under={lambda_under}, lambda_over={lambda_over}, use_niu={use_niu}")
+    print(f"Variant dir: {variant_dir}/")
+    print(f"Data seed: {data_seed}  |  Model seeds: {model_seeds}\n")
+
+    # Data + splits (governed by data_seed; invariant across model seeds)
+    features_all = np.load(cfg["data"]["features_path"])
+    labels_all = np.load(cfg["data"]["labels_path"])
+    pool_idx, holdout_idx = train_test_split(
+        np.arange(len(features_all)), test_size=holdout_frac,
+        stratify=labels_all, random_state=data_seed,
+    )
+    features = features_all[pool_idx]
+    labels = labels_all[pool_idx]
+    X_holdout, y_holdout = features_all[holdout_idx], labels_all[holdout_idx]
+    print(f"CV pool: {len(features)} samples  |  Holdout: {len(X_holdout)}")
+    print(f"Label dist (pool): {np.bincount(labels)}\n")
+
+    per_head_weights = None
+    if use_niu:
+        per_head_weights = compute_niu_weights(labels, num_classes=num_classes)
+        print(f"Niu per-head weights: {[f'{w:.3f}' for w in per_head_weights]}\n")
+
+    def make_loss() -> AsymmetricOrdinalMarginLoss:
+        return AsymmetricOrdinalMarginLoss(
+            num_classes=num_classes,
+            m_plus=m_plus, m_minus=m_minus, lambda_base=lambda_base,
+            lambda_under=lambda_under, lambda_over=lambda_over,
+            per_head_weights=per_head_weights,
+        )
+
+    skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=data_seed)
+    splits = list(skf.split(features, labels))
+
+    wandb_cfg = {
+        "model": "OrdinalCapsNet + AsymmetricMargin",
+        **{k: v for k, v in cfg["model"].items()},
+        "m_plus": m_plus, "m_minus": m_minus, "lambda_base": lambda_base,
+        "lambda_under": lambda_under, "lambda_over": lambda_over,
+        "use_niu_weights": use_niu, "per_head_weights": per_head_weights,
+        "lr": lr, "batch_size": batch_size, "epochs": epochs,
+        "patience": patience, "n_folds": n_folds, "data_seed": data_seed,
+        "weight_decay": weight_decay, "holdout_frac": holdout_frac,
+    }
+
+    is_default_single = (args.seeds is None and len(model_seeds) == 1 and model_seeds[0] == data_seed)
+    per_seed_results: list[dict] = []
+    for model_seed in model_seeds:
+        if is_default_single:
+            seed_dir, seed_suffix = variant_dir, ""
+        else:
+            seed_dir, seed_suffix = variant_dir / f"seed{model_seed}", f"-seed{model_seed}"
+
+        result = run_one_seed(
+            cfg, args, model_seed, device,
+            features, labels, X_holdout, y_holdout, splits,
+            loss_factory=make_loss, per_head_weights=per_head_weights,
+            seed_plots_dir=seed_dir, seed_suffix=seed_suffix,
+            name=name, use_wandb=use_wandb, wandb_cfg=wandb_cfg,
+        )
+        per_seed_results.append({"model_seed": model_seed, "result": result})
+
+    if len(model_seeds) > 1:
+        pooled = {}
+        for key in ("qwk", "accuracy", "macro_f1", "holdout_qwk", "holdout_accuracy", "holdout_macro_f1"):
+            vals = [r["result"][f"{key}_mean"] for r in per_seed_results]
+            pooled[f"{key}_mean"] = float(np.mean(vals))
+            pooled[f"{key}_std_across_seeds"] = float(np.std(vals))
+        (variant_dir / "summary_multiseed.json").write_text(json.dumps({
+            "model": name,
+            "model_seeds": model_seeds,
+            "data_seed": data_seed,
+            "per_seed": per_seed_results,
+            "pooled_across_seeds": pooled,
+        }, indent=2))
+        print(f"\nMulti-seed pooled summary -> {variant_dir}/summary_multiseed.json")
 
 
 if __name__ == "__main__":
