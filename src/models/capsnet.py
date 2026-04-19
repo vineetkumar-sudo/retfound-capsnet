@@ -67,13 +67,18 @@ class DigitCaps(nn.Module):
             0.01 * torch.randn(1, num_primary, num_classes, caps_dim, primary_dim)
         )
 
-    def forward(self, u: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, u: torch.Tensor, return_routing_history: bool = False
+    ) -> tuple[torch.Tensor, torch.Tensor] | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
             u: (B, num_primary, primary_dim)
+            return_routing_history: if True, also return a stack of coupling
+                coefficients from each routing iteration for UQ use.
         Returns:
             v: (B, num_classes, caps_dim) — final digit capsule vectors
             c: (B, num_primary, num_classes) — final routing coefficients
+            [optional] c_history: (routing_iters, B, num_primary, num_classes)
         """
         B = u.size(0)
         # u: (B, num_primary, primary_dim) -> (B, num_primary, 1, primary_dim, 1)
@@ -88,8 +93,11 @@ class DigitCaps(nn.Module):
 
         v = torch.zeros(B, self.num_classes, self.caps_dim, device=u.device)
         c = torch.zeros_like(b)
+        history: list[torch.Tensor] = [] if return_routing_history else []
         for r in range(self.routing_iters):
             c = F.softmax(b, dim=2)  # softmax over digit-caps dim
+            if return_routing_history:
+                history.append(c.detach())
             uh = u_hat if r == self.routing_iters - 1 else u_hat_detached
             # s_j = sum_i c_ij * u_hat_ij : (B, num_classes, caps_dim)
             s = (c.unsqueeze(-1) * uh).sum(dim=1)
@@ -99,6 +107,9 @@ class DigitCaps(nn.Module):
                 agreement = (uh * v.unsqueeze(1)).sum(dim=-1)
                 b = b + agreement
 
+        if return_routing_history:
+            c_hist = torch.stack(history, dim=0)  # (R, B, num_primary, num_classes)
+            return v, c, c_hist
         return v, c
 
 

@@ -49,21 +49,32 @@ class OrdinalCapsNet(nn.Module):
             for _ in range(self.num_heads)
         ])
 
-    def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor | list]:
+    def forward(
+        self, x: torch.Tensor, return_routing_history: bool = False
+    ) -> dict[str, torch.Tensor | list]:
         u = self.primary(x)
         u = self.dropout(u)
 
         head_caps: list[torch.Tensor] = []
         head_couplings: list[torch.Tensor] = []
         head_lengths: list[torch.Tensor] = []
+        head_histories: list[torch.Tensor] = []
         for head in self.heads:
-            v, c = head(u)  # v: (B, 2, caps_dim), c: (B, num_primary, 2)
+            if return_routing_history:
+                v, c, c_hist = head(u, return_routing_history=True)
+                head_histories.append(c_hist)
+            else:
+                v, c = head(u)
             head_caps.append(v)
             head_couplings.append(c)
             head_lengths.append(v.norm(dim=-1))
 
-        return {
+        out: dict = {
             "head_caps": torch.stack(head_caps, dim=1),        # (B, num_heads, 2, caps_dim)
             "head_lengths": torch.stack(head_lengths, dim=1),  # (B, num_heads, 2)
             "head_couplings": head_couplings,                  # list of (B, num_primary, 2)
         }
+        if return_routing_history:
+            # (num_heads, routing_iters, B, num_primary, 2)
+            out["routing_history"] = torch.stack(head_histories, dim=0)
+        return out
