@@ -27,15 +27,15 @@ from src.evaluate import compute_all_metrics
 
 
 ROW_SPECS = [
-    # (display_name, kind, path_or_key, regime_label)
-    ("Linear Probe + CE",         "baseline_pred", ("Linear Probe + CE",),         "5-fold, seed=42"),
-    ("MLP + CE",                  "baseline_pred", ("MLP + CE",),                  "5-fold, seed=42"),
-    ("MLP + MSE (Ordinal)",       "baseline_pred", ("MLP + MSE (Ordinal)",),       "5-fold, seed=42"),
-    ("MLP + Weighted CE",         "baseline_pred", ("MLP + Weighted CE",),         "5-fold, seed=42"),
-    ("Vanilla CapsNet",           "capsnet",       ("results/capsnet",),           "5-fold, seed=42"),
-    ("Ordinal CapsNet",           "ordinal",       ("results/ordinal_capsnet",),   "3 seeds x 5-fold"),
-    ("+ Asymmetric loss",         "ordinal",       ("results/asymmetric_ordinal/A_baseline",), "3 seeds x 5-fold"),
-    ("+ KC Loss (gamma=0.3)",     "ordinal",       ("results/ordinal_kc/kc_gamma_0p30",),      "3 seeds x 5-fold"),
+    # (display_name, canonical_id, kind, path_or_key, regime_label)
+    ("Linear Probe + CE",      "linear_probe_ce",     "baseline_pred", ("Linear Probe + CE",),      "5-fold, seed=42"),
+    ("MLP + CE",               "mlp_ce",              "baseline_pred", ("MLP + CE",),               "5-fold, seed=42"),
+    ("MLP + MSE (Ordinal)",    "mlp_mse",             "baseline_pred", ("MLP + MSE (Ordinal)",),    "5-fold, seed=42"),
+    ("MLP + Weighted CE",      "mlp_weighted_ce",     "baseline_pred", ("MLP + Weighted CE",),      "5-fold, seed=42"),
+    ("Vanilla CapsNet",        "capsnet_vanilla",     "capsnet",       ("results/capsnet",),        "5-fold, seed=42"),
+    ("Ordinal CapsNet",        "ordinal_capsnet",     "ordinal",       ("results/ordinal_capsnet",),"3 seeds x 5-fold"),
+    ("+ Asymmetric loss",      "ordinal_asymmetric",  "ordinal",       ("results/asymmetric_ordinal/A_baseline",), "3 seeds x 5-fold"),
+    ("+ KC Loss (gamma=0.3)",  "ordinal_kc_loss",     "ordinal",       ("results/ordinal_kc/kc_gamma_0p30",),      "3 seeds x 5-fold"),
 ]
 
 BASELINES_JSON = Path("results/baselines/summary.json")
@@ -165,7 +165,7 @@ def row_from_ordinal(display: str, variant_dir: Path) -> dict:
 
 def build_rows() -> list[dict]:
     rows = []
-    for display, kind, args, regime in ROW_SPECS:
+    for display, canonical_id, kind, args, regime in ROW_SPECS:
         if kind == "baseline_pred":
             row = row_from_baseline(display, args[0])
         elif kind == "capsnet":
@@ -174,6 +174,7 @@ def build_rows() -> list[dict]:
             row = row_from_ordinal(display, Path(args[0]))
         else:
             raise ValueError(kind)
+        row["CanonicalID"] = canonical_id
         row["Regime"] = regime
         rows.append(row)
     return rows
@@ -186,6 +187,7 @@ def format_pm(mean: float, std: float, width: int = 4) -> str:
 
 
 def write_csv(rows: list[dict], path: Path) -> None:
+    """Display-friendly CSV kept for backwards compatibility with Day 6 tooling."""
     import csv
     cols = ["Model", "QWK_mean", "QWK_std", "Accuracy_mean", "Accuracy_std",
             "MacroF1_mean", "MacroF1_std", "MAE_mean", "MAE_std", "Regime"]
@@ -194,6 +196,25 @@ def write_csv(rows: list[dict], path: Path) -> None:
         w.writeheader()
         for r in rows:
             w.writerow({c: r.get(c, "") for c in cols})
+
+
+def write_canonical_csv(rows: list[dict], path: Path) -> None:
+    """Day 7 source-of-truth CSV: snake_case model ids + the exact column schema the paper consumes."""
+    import csv
+    cols = ["model", "qwk_mean", "qwk_std", "acc_mean", "acc_std",
+            "f1_mean", "f1_std", "mae_mean", "mae_std", "regime"]
+    with path.open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=cols)
+        w.writeheader()
+        for r in rows:
+            w.writerow({
+                "model": r["CanonicalID"],
+                "qwk_mean": r["QWK_mean"], "qwk_std": r["QWK_std"],
+                "acc_mean": r["Accuracy_mean"], "acc_std": r["Accuracy_std"],
+                "f1_mean": r["MacroF1_mean"], "f1_std": r["MacroF1_std"],
+                "mae_mean": r["MAE_mean"], "mae_std": r["MAE_std"],
+                "regime": r["Regime"],
+            })
 
 
 def write_md(rows: list[dict], path: Path) -> None:
@@ -294,8 +315,10 @@ def main() -> None:
     csv_path = out_dir / "aptos_final_table.csv"
     md_path = out_dir / "aptos_final_table.md"
     pc_path = out_dir / "per_class_breakdown.csv"
+    canonical_path = out_dir / "aptos_final_results.csv"
 
     write_csv(rows, csv_path)
+    write_canonical_csv(rows, canonical_path)
     write_md(rows, md_path)
     per_class_breakdown(pc_path)
 
@@ -309,7 +332,7 @@ def main() -> None:
               f"{format_pm(r['MacroF1_mean'], r['MacroF1_std']):<20}"
               f"{format_pm(r['MAE_mean'], r['MAE_std'], width=3):<18}"
               f"{r['Regime']:<22}")
-    print(f"\nWrote:\n  {csv_path}\n  {md_path}\n  {pc_path}")
+    print(f"\nWrote:\n  {csv_path}\n  {canonical_path}\n  {md_path}\n  {pc_path}")
 
 
 if __name__ == "__main__":

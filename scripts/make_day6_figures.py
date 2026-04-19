@@ -84,16 +84,23 @@ def pool_fold_npz(dir_: Path, keys: tuple[str, ...] = ("y_true", "y_pred")) -> d
 # Figures A, B, AB
 # ---------------------------------------------------------------------------
 
-def _plot_cm(ax, cm_pct: np.ndarray, title: str, cbar: bool = True) -> None:
+def _plot_cm(ax, cm_pct: np.ndarray, subtitle: str | None = None, cbar: bool = True) -> None:
+    """Confusion-matrix heatmap.
+
+    `subtitle` is only used for the side-by-side (a) / (b) labels; no top-level
+    title is ever set — the paper's LaTeX caption owns all titling.
+    """
     sns.heatmap(
         cm_pct, annot=True, fmt=".1f", cmap="Blues",
         xticklabels=CLASS_NAMES, yticklabels=CLASS_NAMES,
         ax=ax, cbar=cbar, vmin=0, vmax=100,
         annot_kws={"fontsize": 11},
+        cbar_kws={"label": "% of true class"} if cbar else None,
     )
     ax.set_xlabel("Predicted")
     ax.set_ylabel("True")
-    ax.set_title(title)
+    if subtitle:
+        ax.set_title(subtitle, fontsize=12, pad=6)
 
 
 def fig_a_vanilla_cm() -> None:
@@ -101,7 +108,7 @@ def fig_a_vanilla_cm() -> None:
     cm = confusion_matrix(d["y_true"], d["y_pred"], labels=range(5))
     cm_pct = cm.astype(float) / cm.sum(axis=1, keepdims=True) * 100
     fig, ax = plt.subplots(figsize=(6.0, 5.0))
-    _plot_cm(ax, cm_pct, "Vanilla CapsNet (% per true class)")
+    _plot_cm(ax, cm_pct)
     fig.tight_layout()
     save_both(fig, "fig_a_cm_vanilla")
     print("  Figure A saved.")
@@ -112,7 +119,7 @@ def fig_b_ordinal_cm() -> None:
     cm = confusion_matrix(d["y_true"], d["y_pred"], labels=range(5))
     cm_pct = cm.astype(float) / cm.sum(axis=1, keepdims=True) * 100
     fig, ax = plt.subplots(figsize=(6.0, 5.0))
-    _plot_cm(ax, cm_pct, "Ordinal CapsNet (% per true class)")
+    _plot_cm(ax, cm_pct)
     fig.tight_layout()
     save_both(fig, "fig_b_cm_ordinal")
     print("  Figure B saved.")
@@ -183,14 +190,16 @@ def fig_c_uq_boxplot() -> None:
     bp["boxes"][1].set_facecolor("#c44e52")
     for b in bp["boxes"]:
         b.set_alpha(0.7); b.set_edgecolor("black")
-    ax.set_ylabel("Prediction-margin uncertainty (1 - top1-top2)")
-    ax.set_title("Ordinal CapsNet — uncertainty splits correct vs misclassified")
-    # Give the bracket + p-value room above the top whisker without colliding with title
-    ax.set_ylim(-0.03, 1.22)
-    ax.plot([1, 1, 2, 2], [1.05, 1.09, 1.09, 1.05], color="black", lw=1.2)
+    ax.set_ylabel("Prediction margin  (1 − [top1 − top2])")
+    # No matplotlib title — LaTeX caption owns all titling.
+    ax.set_ylim(-0.03, 1.18)
+    ax.plot([1, 1, 2, 2], [1.03, 1.07, 1.07, 1.03], color="black", lw=1.2)
     p64 = float(p)  # scipy may return float32, where 1e-300 underflows to 0
-    ptxt = "p < 1e-300" if p64 < 1e-300 else f"p = {p64:.2e}"
-    ax.text(1.5, 1.115, f"Mann-Whitney U   {ptxt}",
+    if p64 < 1e-300:
+        ptxt = "***   (p < 1e-300)"
+    else:
+        ptxt = f"***   (p = {p64:.2e})"
+    ax.text(1.5, 1.095, f"Mann-Whitney U   {ptxt}",
             ha="center", va="bottom", fontsize=10)
     ax.grid(axis="y", alpha=0.3)
     fig.tight_layout()
@@ -234,13 +243,13 @@ def fig_d_acc_coverage() -> None:
 
     ax.axhline(baseline_acc, linestyle="--", color="gray", linewidth=1.5,
                label=f"Baseline accuracy @ 100% coverage = {baseline_acc:.3f}")
-    ax.set_xlabel("Coverage (fraction of samples retained, most certain first)")
+    ax.set_xlabel("Coverage  (fraction of samples retained, most certain first)")
     ax.set_ylabel("Accuracy on retained subset")
-    ax.set_title("Ordinal CapsNet — accuracy vs coverage")
+    # No title — LaTeX caption owns titling.
     ax.set_xlim(0.1, 1.02)
     ax.invert_xaxis()
-    ax.grid(alpha=0.3)
-    ax.legend(loc="lower right")
+    ax.grid(alpha=0.25, linestyle=":")
+    ax.legend(loc="lower right", framealpha=0.95)
     fig.tight_layout()
     save_both(fig, "fig_d_acc_coverage")
     print("  Figure D saved.")
@@ -310,9 +319,9 @@ def fig_e_training_curve() -> None:
 
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Validation QWK")
-    ax.set_title("Training dynamics — Ordinal vs Vanilla CapsNet")
-    ax.grid(alpha=0.3)
-    ax.legend(loc="lower right")
+    # No title — LaTeX caption owns titling.
+    ax.grid(alpha=0.25, linestyle=":")
+    ax.legend(loc="lower right", framealpha=0.95)
     fig.tight_layout()
     save_both(fig, "fig_e_training_curve")
     print("  Figure E saved.")
