@@ -196,20 +196,32 @@ def fig_d_idrid_acc_coverage() -> None:
 
 
 def main() -> None:
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--strict", action="store_true",
+                    help="Re-raise instead of skipping on the first figure error.")
+    args = ap.parse_args()
+
     print(f"Writing IDRiD figures to {FIGDIR}/ ...")
-    try:
-        fig_f_sidebyside_cm()
-    except Exception as e:
-        print(f"  Figure F skipped: {e}")
-    try:
-        fig_c_idrid_uq_boxplot()
-    except Exception as e:
-        print(f"  Figure C (IDRiD) skipped: {e}")
-    try:
-        fig_d_idrid_acc_coverage()
-    except Exception as e:
-        print(f"  Figure D (IDRiD) skipped: {e}")
-    print("Done.")
+    figures = [
+        ("Figure F (IDRiD CM)",        fig_f_sidebyside_cm),
+        ("Figure C (IDRiD UQ)",        fig_c_idrid_uq_boxplot),
+        ("Figure D (IDRiD coverage)",  fig_d_idrid_acc_coverage),
+    ]
+    failed: list[str] = []
+    for name, fn in figures:
+        try:
+            fn()
+        except Exception as e:
+            if args.strict:
+                raise
+            print(f"  {name} skipped: {e}")
+            failed.append(name)
+    if failed:
+        print(f"Done with {len(failed)} failure(s): {failed}. "
+              "Rerun with --strict to see the traceback.")
+    else:
+        print("Done.")
 
 
 if __name__ == "__main__":

@@ -146,30 +146,39 @@ def fig_ab_sidebyside() -> None:
 # ---------------------------------------------------------------------------
 
 def _load_uq_arrays(dir_: Path) -> dict:
-    """Load pooled head_lengths + y_true + y_pred for UQ signals."""
-    d = pool_fold_npz(dir_, keys=("y_true", "y_pred", "head_lengths"))
-    head_lengths = torch.from_numpy(d["head_lengths"])
-    margin = prediction_margin(head_lengths).numpy()
-    entropy = digit_cap_entropy(head_lengths).numpy()
-    # Routing variance was NOT saved in preds_fold*.npz (it needs routing history).
-    # Fall back to Day 5B's summary.json stats instead — those were computed on the
-    # identical Day 3 champion on the same folds, so they are comparable.
-    return {
-        "y_true": d["y_true"], "y_pred": d["y_pred"],
-        "prediction_margin": margin,
-        "digit_entropy": entropy,
-    }
+    """Load pooled per-sample UQ signals from preds_fold*.npz.
 
-
-def _load_routing_variance_from_day5b() -> tuple[np.ndarray, np.ndarray] | None:
-    """Day 5B saved per-sample routing variance implicitly; look for a numpy dump.
-
-    If absent, return None and the accuracy-coverage curve will skip that series.
+    Returns y_true, y_pred, prediction_margin, digit_entropy. Routing variance
+    is only included when `routing_variance` is present in every npz file —
+    older preds dumps predate that column and fall back to a None sentinel.
     """
-    # run_uq_analysis.py wrote only summary.json + PNG plots — raw arrays not dumped.
-    # So Figure D will omit routing variance unless we recompute it here, which
-    # would require retraining. Return None and annotate.
-    return None
+    files = sorted(dir_.glob("preds_fold*.npz"))
+    if not files:
+        raise FileNotFoundError(f"No preds_fold*.npz in {dir_}")
+
+    yts, yps, hls, rvs = [], [], [], []
+    have_rv = True
+    for f in files:
+        d = np.load(f)
+        yts.append(d["y_true"])
+        yps.append(d["y_pred"])
+        hls.append(d["head_lengths"])
+        if "routing_variance" in d.files:
+            rvs.append(d["routing_variance"])
+        else:
+            have_rv = False
+
+    y_true = np.concatenate(yts)
+    y_pred = np.concatenate(yps)
+    head_lengths = torch.from_numpy(np.concatenate(hls, axis=0))
+    out = {
+        "y_true": y_true, "y_pred": y_pred,
+        "prediction_margin": prediction_margin(head_lengths).numpy(),
+        "digit_entropy": digit_cap_entropy(head_lengths).numpy(),
+    }
+    if have_rv and rvs:
+        out["routing_variance"] = np.concatenate(rvs)
+    return out
 
 
 def fig_c_uq_boxplot() -> None:
@@ -215,10 +224,17 @@ def fig_d_acc_coverage() -> None:
     fig, ax = plt.subplots(figsize=(7.5, 5.0))
 
     coverages = np.linspace(0.10, 1.0, 91)
-    for label, arr, color in [
+    curve_specs = [
         ("Prediction margin", uq["prediction_margin"], "#5c6bc0"),
         ("DigitCap entropy",  uq["digit_entropy"],    "#4c9f70"),
-    ]:
+    ]
+    if "routing_variance" in uq:
+        curve_specs.append(("Routing variance",  uq["routing_variance"], "#c44e52"))
+    else:
+        print("  Figure D: routing_variance missing from preds npz — rerun ordinal "
+              "seed 42 with the patched script to populate.")
+
+    for label, arr, color in curve_specs:
         # Reject highest-uncertainty samples first; accuracy on the retained portion
         order = np.argsort(arr)       # low -> high uncertainty
         correct_sorted = correct[order]
@@ -226,20 +242,8 @@ def fig_d_acc_coverage() -> None:
         n = len(correct_sorted)
         for c in coverages:
             keep = int(round(c * n))
-            if keep == 0:
-                accs.append(np.nan)
-            else:
-                accs.append(correct_sorted[:keep].mean())
+            accs.append(correct_sorted[:keep].mean() if keep else np.nan)
         ax.plot(coverages, accs, label=label, linewidth=2.2, color=color)
-
-    # Note: routing variance is omitted — see docstring for why
-    rv = _load_routing_variance_from_day5b()
-    if rv is not None:
-        corr_rv, arr_rv = rv
-        order = np.argsort(arr_rv)
-        cs = corr_rv[order]
-        accs = [cs[:int(round(c * len(cs)))].mean() if c > 0 else np.nan for c in coverages]
-        ax.plot(coverages, accs, label="Routing variance", linewidth=2.2, color="#c44e52")
 
     ax.axhline(baseline_acc, linestyle="--", color="gray", linewidth=1.5,
                label=f"Baseline accuracy @ 100% coverage = {baseline_acc:.3f}")
@@ -332,32 +336,36 @@ def fig_e_training_curve() -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--strict", action="store_true",
+                    help="Re-raise the first figure-generation error instead of skipping. "
+                         "Use this for paper-generation runs where every figure must land.")
+    args = ap.parse_args()
+
     print(f"Writing figures to {FIGDIR}/ ...")
-    try:
-        fig_a_vanilla_cm()
-    except Exception as e:
-        print(f"  Figure A skipped: {e}")
-    try:
-        fig_b_ordinal_cm()
-    except Exception as e:
-        print(f"  Figure B skipped: {e}")
-    try:
-        fig_ab_sidebyside()
-    except Exception as e:
-        print(f"  Figure AB skipped: {e}")
-    try:
-        fig_c_uq_boxplot()
-    except Exception as e:
-        print(f"  Figure C skipped: {e}")
-    try:
-        fig_d_acc_coverage()
-    except Exception as e:
-        print(f"  Figure D skipped: {e}")
-    try:
-        fig_e_training_curve()
-    except Exception as e:
-        print(f"  Figure E skipped: {e}")
-    print("Done.")
+    figures = [
+        ("Figure A",        fig_a_vanilla_cm),
+        ("Figure B",        fig_b_ordinal_cm),
+        ("Figure AB",       fig_ab_sidebyside),
+        ("Figure C",        fig_c_uq_boxplot),
+        ("Figure D",        fig_d_acc_coverage),
+        ("Figure E",        fig_e_training_curve),
+    ]
+    failed: list[str] = []
+    for name, fn in figures:
+        try:
+            fn()
+        except Exception as e:
+            if args.strict:
+                raise
+            print(f"  {name} skipped: {e}")
+            failed.append(name)
+    if failed:
+        print(f"Done with {len(failed)} failure(s): {failed}. "
+              "Rerun with --strict to see the traceback.")
+    else:
+        print("Done.")
 
 
 if __name__ == "__main__":

@@ -75,7 +75,7 @@ def per_fold_metrics(npz_paths: list[Path]) -> dict:
 
 
 def row_from_baseline(display: str, baseline_key: str) -> dict:
-    """Day 1 baseline row. Uses summary.json for everything, preds npz for MAE."""
+    """Day 1 baseline row. Uses summary.json for QWK/Acc/F1; MAE prefers preds."""
     summary = json.load(BASELINES_JSON.open())
     res = summary["results"][baseline_key]
     pred_dir = BASELINES_JSON.parent
@@ -84,10 +84,13 @@ def row_from_baseline(display: str, baseline_key: str) -> dict:
         pooled = pool_preds(npz)
         assert pooled is not None
         mae_m, mae_s = per_fold_metrics(npz)["mae"]
+        mae_src = "preds"
     elif "mae_mean" in res:
         mae_m, mae_s = res["mae_mean"], res.get("mae_std", 0.0)
+        mae_src = "stored_mean"
     else:
         mae_m, mae_s = (float("nan"), float("nan"))
+        mae_src = "missing"
 
     return {
         "Model": display,
@@ -95,6 +98,7 @@ def row_from_baseline(display: str, baseline_key: str) -> dict:
         "Accuracy_mean": res["accuracy_mean"], "Accuracy_std": res["accuracy_std"],
         "MacroF1_mean": res["macro_f1_mean"], "MacroF1_std": res["macro_f1_std"],
         "MAE_mean": mae_m, "MAE_std": mae_s,
+        "_mae_sources": [mae_src],
     }
 
 
@@ -106,38 +110,45 @@ def row_from_capsnet(display: str, results_dir: Path) -> dict:
     if npz:
         per = per_fold_metrics(npz)
         mae_m, mae_s = per["mae"]
+        mae_src = "preds"
     else:
         mae_m, mae_s = (float("nan"), float("nan"))
+        mae_src = "missing"
     return {
         "Model": display,
         "QWK_mean": res["qwk_mean"], "QWK_std": res["qwk_std"],
         "Accuracy_mean": res["accuracy_mean"], "Accuracy_std": res["accuracy_std"],
         "MacroF1_mean": res["macro_f1_mean"], "MacroF1_std": res["macro_f1_std"],
         "MAE_mean": mae_m, "MAE_std": mae_s,
+        "_mae_sources": [mae_src],
     }
 
 
 def row_from_ordinal(display: str, variant_dir: Path) -> dict:
-    """Rows 6-8. If seed{S}/ subdirs exist, pool across seeds; else single seed.
+    """Rows 6-8. Pool across seed{S}/ subdirs; legacy top-level summary is only
+    used when NO seed{S}/ subdirs exist (back-compat for single-seed runs).
 
-    For multi-seed: report mean across seeds of per-seed fold-means, std across seeds
-    (matches 'n seeds x k folds' protocol used in the paper).
+    Deduplication rule: if a `seed{S}/` subdir exists, the top-level
+    summary.json at `variant_dir` is skipped, since it would double-count that
+    same seed (e.g. ordinal/ vs ordinal/seed42/ both come from data_seed=42).
+
+    For multi-seed: report mean across seeds of per-seed fold-means, std across
+    seeds. Regime labelled as "N seeds × 5-fold" where N == len(seed_dirs).
     """
     seed_dirs = sorted(variant_dir.glob("seed*"))
     if seed_dirs:
-        # Multi-seed: seed_dirs hold new seeds; variant_dir top level has seed-42 legacy
-        seed_dirs_all = [variant_dir] + seed_dirs
+        seed_dirs_all = list(seed_dirs)  # multi-seed layout: legacy top-level is a duplicate, skip
     else:
-        seed_dirs_all = [variant_dir]
+        seed_dirs_all = [variant_dir]    # single-seed legacy layout
 
-    qwks, accs, f1s, maes = [], [], [], []
+    qwks, accs, f1s, maes, mae_sources = [], [], [], [], []
     for sd in seed_dirs_all:
         sj = sd / "summary.json"
         if not sj.exists():
+            print(f"  [row_from_ordinal] WARN {sd}/summary.json missing — seed skipped")
             continue
         s = json.load(sj.open())
         res = s.get("result", s)
-        # MAE: prefer per-fold preds; fall back to recorded mae_mean; else skip.
         npz = sorted(sd.glob("preds_fold*.npz"))
         if npz:
             per = per_fold_metrics(npz)
@@ -145,12 +156,16 @@ def row_from_ordinal(display: str, variant_dir: Path) -> dict:
             accs.append(per["accuracy"][0])
             f1s.append(per["macro_f1"][0])
             maes.append(per["mae"][0])
+            mae_sources.append("preds")
         else:
             qwks.append(res["qwk_mean"])
             accs.append(res["accuracy_mean"])
             f1s.append(res["macro_f1_mean"])
             if "mae_mean" in res:
                 maes.append(res["mae_mean"])
+                mae_sources.append("stored_mean")
+            else:
+                mae_sources.append("missing")
     mae_m = float(np.mean(maes)) if maes else float("nan")
     mae_s = float(np.std(maes)) if len(maes) > 1 else 0.0
     return {
@@ -160,6 +175,7 @@ def row_from_ordinal(display: str, variant_dir: Path) -> dict:
         "MacroF1_mean": float(np.mean(f1s)), "MacroF1_std": float(np.std(f1s)),
         "MAE_mean": mae_m, "MAE_std": mae_s,
         "_n_seeds": len(seed_dirs_all),
+        "_mae_sources": mae_sources,
     }
 
 
@@ -321,6 +337,22 @@ def main() -> None:
     write_canonical_csv(rows, canonical_path)
     write_md(rows, md_path)
     per_class_breakdown(pc_path)
+
+    # --- MAE source audit (Fix #2) ---
+    print("\nMAE source per row:")
+    any_stale = False
+    for r in rows:
+        srcs = r.get("_mae_sources", [])
+        counts: dict[str, int] = {}
+        for s in srcs:
+            counts[s] = counts.get(s, 0) + 1
+        desc = ", ".join(f"{v}x {k}" for k, v in counts.items())
+        print(f"  {r['Model']:<28s}  {desc}")
+        if any(s != "preds" for s in srcs):
+            any_stale = True
+    if any_stale:
+        print("  WARNING: at least one row used stored_mean / missing MAE "
+              "instead of fresh preds — regenerate preds for that row.")
 
     # Pretty-print to console
     print("\nAPTOS ablation table:")

@@ -72,23 +72,34 @@ def make_loaders(X_tr, X_va, y_tr, y_va, batch_size: int):
 def collect_preds(model: OrdinalCapsNet, loader: DataLoader, device: torch.device) -> dict:
     """Run val/holdout loader, return per-sample arrays for Day 6 figures.
 
-    Returns dict with numpy arrays: y_true (N,), y_pred (N,), head_probs (N, K-1), head_lengths (N, K-1, 2).
+    Returns dict with numpy arrays:
+      y_true (N,), y_pred (N,), head_probs (N, K-1), head_lengths (N, K-1, 2),
+      routing_variance (N,)  -- per-sample Day 5B routing-agreement variance UQ
+                               (mean std of coupling coeffs across routing iters,
+                               averaged over heads / primaries / output caps).
     """
     model.eval()
-    all_lengths, all_labels = [], []
+    all_lengths, all_labels, all_rv = [], [], []
     for X, y in loader:
         X = X.to(device)
-        L = model(X)["head_lengths"]
+        out = model(X, return_routing_history=True)
+        L = out["head_lengths"]           # (B, K-1, 2)
+        rh = out["routing_history"]       # (H, R, B, P, 2)
+        # Per-sample routing variance: same formula as src.uncertainty.routing_agreement_variance
+        rv = rh.std(dim=1).mean(dim=(0, 2, 3))    # (B,)
         all_lengths.append(L.cpu())
         all_labels.append(y.cpu())
+        all_rv.append(rv.cpu())
     lengths = torch.cat(all_lengths, dim=0)
     labels = torch.cat(all_labels, dim=0)
+    rv_all = torch.cat(all_rv, dim=0)
     preds = predict_grade_from_heads(lengths).numpy().astype(np.int64)
     return {
         "y_true": labels.numpy().astype(np.int64),
         "y_pred": preds,
         "head_probs": lengths[:, :, 1].numpy().astype(np.float32),
         "head_lengths": lengths.numpy().astype(np.float32),
+        "routing_variance": rv_all.numpy().astype(np.float32),
     }
 
 
@@ -397,6 +408,7 @@ def run_one_seed(
             "y_pred": val_preds["y_pred"],
             "head_probs": val_preds["head_probs"],
             "head_lengths": val_preds["head_lengths"],
+            "routing_variance": val_preds["routing_variance"],
         }
 
         holdout_m = None
@@ -410,6 +422,7 @@ def run_one_seed(
                 "holdout_y_pred": hold_preds["y_pred"],
                 "holdout_head_probs": hold_preds["head_probs"],
                 "holdout_head_lengths": hold_preds["head_lengths"],
+                "holdout_routing_variance": hold_preds["routing_variance"],
             })
 
         np.savez_compressed(seed_plots_dir / f"preds_fold{fold_idx + 1}.npz", **npz_payload)
