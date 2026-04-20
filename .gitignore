@@ -1,6 +1,7 @@
 /data/
 /results/
 /experiments/
+/paper/
 *.ckpt
 *.pt
 *.pth

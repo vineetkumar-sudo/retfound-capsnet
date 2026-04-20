@@ -52,11 +52,31 @@
 - `uv run python scripts/aggregate_day6.py` / `make_day6_figures.py [--strict]` — Day 6 ablation table + APTOS figures
 - `uv run python scripts/make_architecture_diagram.py` — Day 7 architecture pipeline figure
 - `uv run python scripts/extract_idrid_features.py` / `run_idrid.py` / `cross_dataset_aptos_to_idrid.py` / `aggregate_day8.py` / `make_day8_figures.py` — Day 8 IDRiD + cross-dataset
+- `uv run python scripts/extract_messidor2_features.py` / `run_messidor2.py` / `cross_dataset_aptos_to_messidor2.py` / `aggregate_day9.py` / `make_day9_figures.py [--strict]` — Day 9 Messidor-2 + cross-dataset
 - `uv add <pkg>` — add dependency
 
 ## Experimental findings
-- **Day 3 champion**: ordinal CapsNet + margin loss → val QWK 0.894, holdout QWK 0.881.
-- **Day 4** (asymmetric ordinal loss): no gain — K-1 decomposition already produces safety bias (U/O < 1), so direction weighting is redundant.
-- **Day 5A** (KC Loss / differentiable QWK): no gain over margin loss.
-- **Day 5B** (UQ): prediction margin is by far the strongest uncertainty signal (p<1e-300; 96.3% acc at 50% coverage). Digit-cap entropy is moderately useful. Routing-agreement variance is weak / slightly inverted.
-- Negative results (Day 4, 5A) are treated as paper findings, not failures.
+
+### Within-dataset
+- **APTOS Day 3 champion**: ordinal CapsNet + margin loss → 3 seeds × 5-fold CV QWK 0.8932 ± 0.0004 (MAE 0.254 ± 0.002 — best in ablation table), frozen 10% holdout QWK ≈ 0.883. Wins QWK + MAE; MLP+CE wins Accuracy narrowly (0.8064), Vanilla CapsNet wins Macro F1 (0.6327) — ordinal trades raw top-1 accuracy for fewer distant errors (what QWK / MAE reward).
+- **IDRiD (Day 8, 413 train / 103 test)**: Ordinal wins *val* QWK (0.7557) but MLP+MSE wins *test* QWK (0.4652 vs Ordinal 0.4456). Every model drops ~0.30 QWK val→test equally — an IDRiD split characteristic, not a CapsNet weakness.
+- **Messidor-2 (Day 9, 5-fold CV on 1,744 gradable)**: Ordinal wins QWK cleanly — 0.6065 ± 0.036 vs next-best 0.5566 (MLP+MSE). Largest within-dataset lead in the paper. Per-class: Mild +28.5 pp, Severe +24.0 pp, PDR +20.0 pp vs Vanilla (Grade 0 regresses −18 pp — the known safety-bias tradeoff).
+
+### Cross-dataset (frozen backbone → unseen hospital/camera)
+- **APTOS → IDRiD** (Day 8): QWK 0.273 (Ordinal ensemble). All models drop heavily; IDRiD cameras differ from Aravind imagers.
+- **APTOS → Messidor-2** (Day 9): QWK collapses to ~0.01 for every model. **Diagnosis: the ordinal heads' mean P(y>0) drops from 0.51 on APTOS to 0.087 on Messidor-2**, so every head fires "No" on virtually every sample and predictions collapse to Grade 0 for 1741/1744 images. Binary AUC best case 0.611 (Ordinal). This is a domain-shift finding, not a method bug — rank calibration (match predicted positive rate to train rate, as used in the earlier Kaggle submission) would likely recover a substantial fraction, but was not applied here per the "no silent fallbacks" rule.
+
+### Loss ablations (APTOS)
+- **Day 4** (asymmetric ordinal loss): bit-identical to vanilla ordinal when symmetric λ=1.0/1.0 used (A_baseline). K-1 decomposition already produces safety bias (U/O < 1) — direction weighting is redundant.
+- **Day 5A** (KC Loss / differentiable QWK at γ=0.3): slightly worse across every column (QWK 0.8914 vs 0.8932, MAE 0.264 vs 0.254). Negative result.
+
+### UQ (Day 5B, validated on 3 datasets)
+- **Prediction margin** (1 − [top1 − top2] via chain-rule probs): strongest signal everywhere. APTOS p<1e-300, IDRiD p=4.7e-4, Messidor-2 within p<1e-300 & cross p=1.9e-29.
+- **DigitCap entropy**: modest lift at low coverage; not a competitor to prediction margin.
+- **Routing-agreement variance**: *inverted* — rejecting high-"uncertainty" samples LOWERS accuracy on APTOS. Honest negative, included in Figure D as the third curve.
+
+### Known negative results (paper findings, not failures)
+- Day 4 asymmetric loss (no gain over vanilla ordinal)
+- Day 5A KC Loss (small loss vs margin loss)
+- Cross-dataset generalisation without calibration (frozen features don't transfer out-of-domain)
+- Routing-variance UQ signal is weakly inverted
