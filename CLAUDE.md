@@ -4,7 +4,7 @@
 - Deep learning research project: RETFound + Ordinal Regression Capsule Network for diabetic retinopathy grading on APTOS 2019.
 - Python 3.12, managed with `uv`.
 - Architecture: frozen RETFound (ViT-L, nature-CFP MAE) → cached 1024-dim CLS features → CapsNet head.
-- Each "Day N" experiment is a self-contained script in `scripts/`; no central CLI entrypoint (`main.py` is a stub).
+- Each "Day N" experiment is a self-contained script in `scripts/`; no central CLI entrypoint.
 
 ## Structure
 - `src/models/`
@@ -18,10 +18,10 @@
   - `kc_loss.py` — differentiable QWK via chain-rule class probs (Day 5A)
 - `src/data/`
   - `feature_cache.py` — idempotent RETFound forward pass → `data/aptos/features/*.npy`
-  - `preprocessing.py` — green-channel + CLAHE (explored Day 0, superseded by official RETFound transforms: Resize 256 bicubic → CenterCrop 224 → ImageNet normalize)
-  - `dataset.py` — feature-based `TensorDataset` helpers
+  - Preprocessing follows the official RETFound eval transform: Resize 256 (bicubic) → CenterCrop 224 → ImageNet normalize.
+- `src/evaluate.py` — `compute_all_metrics` (QWK, accuracy, macro-F1, MAE, confusion matrix) — single source of metrics for Day 6+ aggregation.
 - `src/uncertainty.py` — digit-cap entropy, routing-agreement variance, prediction margin
-- `scripts/` — one `run_*.py` per experiment day
+- `scripts/` — one `run_*.py` / `make_*.py` / `aggregate_*.py` per experiment day
 - `configs/` — YAML hyperparameters per experiment
 - `data/`, `experiments/`, `results/` — all gitignored
 
@@ -45,10 +45,13 @@
 - `uv run python scripts/run_baselines.py` — Day 1 linear/MLP baselines (CE, MSE, weighted CE)
 - `uv run python scripts/run_capsnet.py` — Day 2 vanilla 5-class CapsNet + margin loss
 - `uv run python scripts/check_ordinal_capsnet.py` — Day 3 sanity checks (shapes, gradients, convergence, monotonicity)
-- `uv run python scripts/run_ordinal_capsnet.py` — Day 3 K-1 ordinal CapsNet (champion)
+- `uv run python scripts/run_ordinal_capsnet.py` — Day 3 K-1 ordinal CapsNet (champion); supports `--seeds 42,123,456`
 - `uv run python scripts/sweep_asymmetric.py` / `run_asymmetric_ordinal.py` — Day 4 asymmetric loss
 - `uv run python scripts/run_ordinal_kc.py` — Day 5A KC Loss
-- `uv run python scripts/run_uq_analysis.py` — Day 5B capsule-native UQ
+- `uv run python scripts/run_uq_analysis.py` — Day 5B standalone UQ study (legacy; UQ figures are now produced by `make_day6_figures.py` from the patched ordinal preds)
+- `uv run python scripts/aggregate_day6.py` / `make_day6_figures.py [--strict]` — Day 6 ablation table + APTOS figures
+- `uv run python scripts/make_architecture_diagram.py` — Day 7 architecture pipeline figure
+- `uv run python scripts/extract_idrid_features.py` / `run_idrid.py` / `cross_dataset_aptos_to_idrid.py` / `aggregate_day8.py` / `make_day8_figures.py` — Day 8 IDRiD + cross-dataset
 - `uv add <pkg>` — add dependency
 
 ## Experimental findings
