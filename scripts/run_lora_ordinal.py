@@ -151,9 +151,10 @@ def evaluate(model: RetfoundLoraOrdinalCapsNet, loader: DataLoader,
 def train_fold(fold_idx: int, ids_tr, y_tr, ids_va, y_va,
                device: torch.device, epochs: int, patience: int,
                batch_size: int, num_workers: int,
-               out_dir: Path, log_every: int) -> dict:
-    torch.manual_seed(SEED + fold_idx)
-    np.random.seed(SEED + fold_idx)
+               out_dir: Path, log_every: int,
+               model_seed: int = SEED) -> dict:
+    torch.manual_seed(model_seed + fold_idx)
+    np.random.seed(model_seed + fold_idx)
 
     tr_loader, va_loader = make_loaders(ids_tr, y_tr, ids_va, y_va,
                                         batch_size, num_workers)
@@ -270,7 +271,17 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--force-redo", action="store_true",
                     help="Opposite of --resume: re-train every requested fold even if "
                          "preds already exist (overwriting them). Use with care.")
+    ap.add_argument("--seeds", default=None,
+                    help="Comma-separated model-init seeds (e.g. '42,123,456'). "
+                         "If set, each seed's outputs go to <out-dir>/seed{S}/. "
+                         "If unset, single-seed (SEED=42) flat layout — backwards compatible.")
     return ap.parse_args()
+
+
+def parse_seeds(arg: str | None) -> list[int]:
+    if arg is None:
+        return [SEED]
+    return [int(s) for s in arg.split(",") if s.strip()]
 
 
 def _load_existing_summary(out_dir: Path) -> list[dict]:
@@ -303,92 +314,155 @@ def main() -> None:
     print(f"APTOS CV pool: {len(ids_pool)}  holdout: {len(ids_holdout)}")
     print(f"Pool label dist: {np.bincount(y_pool).tolist()}\n")
 
+    # Data splits always use SEED (fixed). Only model-init RNG varies per seed.
     skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
     splits = list(skf.split(ids_pool, y_pool))
     if args.folds is None:
         args.folds = list(range(N_FOLDS))
 
-    out_dir = Path(args.out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    base_out_dir = Path(args.out_dir)
+    base_out_dir.mkdir(parents=True, exist_ok=True)
 
-    # --- Resume / skip logic ------------------------------------------------
-    # Default behaviour (no flags): NEW run — overwrite summary.json, re-train
-    #   every requested fold. This matches the original contract.
-    # --resume: reuse prior run's summary.json + preds; only train missing folds.
-    # --force-redo: ignore on-disk artifacts and re-train everything.
-    previously_done: dict[int, dict] = {}
-    if args.resume and not args.force_redo:
-        for entry in _load_existing_summary(out_dir):
-            fold_number = entry.get("fold")  # 1-indexed as written by train_fold
-            if isinstance(fold_number, int):
-                previously_done[fold_number - 1] = entry
-        # Also accept any bare preds_fold{N}.npz whose summary got lost.
-        for npz in out_dir.glob("preds_fold*.npz"):
-            try:
-                n = int(npz.stem.replace("preds_fold", ""))
-                if (n - 1) not in previously_done:
-                    # Unknown status — skip it anyway so we don't clobber a completed fold.
-                    previously_done[n - 1] = {
-                        "fold": n, "resumed_from_preds_only": True,
-                        "qwk": float("nan"), "accuracy": float("nan"),
-                        "macro_f1": float("nan"), "mae": float("nan"),
-                    }
-            except ValueError:
-                continue
-        if previously_done:
-            print(f"\nResume mode: {len(previously_done)} fold(s) already on disk — "
-                  f"fold indices {sorted(previously_done.keys())}  (will skip).\n")
-
-    per_fold: list[dict] = [previously_done[k] for k in sorted(previously_done)]
+    model_seeds = parse_seeds(args.seeds)
+    # Single-seed (no --seeds flag) → flat legacy layout at args.out_dir.
+    # Multi-seed or explicit --seeds → per-seed subdir <out_dir>/seed{S}/.
+    is_default_single = (args.seeds is None and len(model_seeds) == 1
+                         and model_seeds[0] == SEED)
+    print(f"Model seeds: {model_seeds}"
+          f"{' (legacy flat layout)' if is_default_single else ' (per-seed subdirs)'}")
 
     t_global = time.time()
-    for fold_idx in args.folds:
-        if fold_idx in previously_done and not args.force_redo:
-            print(f"\n=== Fold {fold_idx + 1}/{N_FOLDS}  SKIPPED (resume; preds on disk) ===")
-            continue
-        tr_idx, va_idx = splits[fold_idx]
-        print(f"\n=== Fold {fold_idx + 1}/{N_FOLDS}  "
-              f"(train={len(tr_idx)}, val={len(va_idx)}) ===")
-        summary = train_fold(
-            fold_idx, ids_pool[tr_idx], y_pool[tr_idx],
-            ids_pool[va_idx], y_pool[va_idx],
-            device, args.epochs, args.patience,
-            args.batch_size, args.num_workers,
-            out_dir, args.log_every,
-        )
-        per_fold.append(summary)
-        # Save partial summary after every fold — so if interrupted we still have data.
-        (out_dir / "summary.json").write_text(json.dumps({
-            "config": {
-                "lora_r": LORA_R, "lora_alpha": LORA_ALPHA,
-                "lora_dropout": LORA_DROPOUT,
-                "epochs": args.epochs, "patience": args.patience,
-                "batch_size": args.batch_size,
-                "lr_lora": LR_LORA, "lr_head": LR_HEAD,
-                "weight_decay": WEIGHT_DECAY, "seed": SEED,
-                "holdout_frac": HOLDOUT_FRAC, "n_folds": N_FOLDS,
-                "sanity": args.sanity,
+    pooled_across_seeds: dict[int, list[dict]] = {}
+
+    for model_seed in model_seeds:
+        if is_default_single:
+            out_dir = base_out_dir
+            seed_suffix = ""
+        else:
+            out_dir = base_out_dir / f"seed{model_seed}"
+            seed_suffix = f" (seed={model_seed})"
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        print("\n" + "#" * 78)
+        print(f"### MODEL SEED {model_seed}{seed_suffix}  ->  {out_dir}")
+        print("#" * 78)
+
+        # --- Resume / skip logic (per seed) -------------------------------
+        previously_done: dict[int, dict] = {}
+        if args.resume and not args.force_redo:
+            for entry in _load_existing_summary(out_dir):
+                fold_number = entry.get("fold")  # 1-indexed
+                if isinstance(fold_number, int):
+                    previously_done[fold_number - 1] = entry
+            for npz in out_dir.glob("preds_fold*.npz"):
+                try:
+                    n = int(npz.stem.replace("preds_fold", ""))
+                    if (n - 1) not in previously_done:
+                        previously_done[n - 1] = {
+                            "fold": n, "resumed_from_preds_only": True,
+                            "qwk": float("nan"), "accuracy": float("nan"),
+                            "macro_f1": float("nan"), "mae": float("nan"),
+                        }
+                except ValueError:
+                    continue
+            if previously_done:
+                print(f"\nResume: {len(previously_done)} fold(s) already on disk "
+                      f"— fold indices {sorted(previously_done.keys())}  (will skip).\n")
+
+        per_fold: list[dict] = [previously_done[k] for k in sorted(previously_done)]
+        t_seed = time.time()
+
+        for fold_idx in args.folds:
+            if fold_idx in previously_done and not args.force_redo:
+                print(f"\n=== Fold {fold_idx + 1}/{N_FOLDS}{seed_suffix}  "
+                      f"SKIPPED (resume; preds on disk) ===")
+                continue
+            tr_idx, va_idx = splits[fold_idx]
+            print(f"\n=== Fold {fold_idx + 1}/{N_FOLDS}{seed_suffix}  "
+                  f"(train={len(tr_idx)}, val={len(va_idx)}) ===")
+            summary = train_fold(
+                fold_idx, ids_pool[tr_idx], y_pool[tr_idx],
+                ids_pool[va_idx], y_pool[va_idx],
+                device, args.epochs, args.patience,
+                args.batch_size, args.num_workers,
+                out_dir, args.log_every,
+                model_seed=model_seed,
+            )
+            per_fold.append(summary)
+            (out_dir / "summary.json").write_text(json.dumps({
+                "config": {
+                    "lora_r": LORA_R, "lora_alpha": LORA_ALPHA,
+                    "lora_dropout": LORA_DROPOUT,
+                    "epochs": args.epochs, "patience": args.patience,
+                    "batch_size": args.batch_size,
+                    "lr_lora": LR_LORA, "lr_head": LR_HEAD,
+                    "weight_decay": WEIGHT_DECAY,
+                    "data_seed": SEED, "model_seed": model_seed,
+                    "holdout_frac": HOLDOUT_FRAC, "n_folds": N_FOLDS,
+                    "sanity": args.sanity,
+                },
+                "per_fold": per_fold,
+                "n_folds_completed": len(per_fold),
+                "elapsed_sec": time.time() - t_seed,
+            }, indent=2))
+
+        qwks = [f["qwk"] for f in per_fold]
+        accs = [f["accuracy"] for f in per_fold]
+        f1s = [f["macro_f1"] for f in per_fold]
+        maes = [f["mae"] for f in per_fold]
+        print("\n" + "=" * 78)
+        print(f"LoRA OrdinalCapsNet{seed_suffix}  —  {len(per_fold)} fold(s)  —  "
+              f"{time.time() - t_seed:.1f}s")
+        print("=" * 78)
+        print(f"QWK     : {np.mean(qwks):.4f} ± {np.std(qwks):.4f}  "
+              f"(fold QWKs: {[f'{q:.4f}' for q in qwks]})")
+        print(f"Accuracy: {np.mean(accs):.4f} ± {np.std(accs):.4f}")
+        print(f"Macro F1: {np.mean(f1s):.4f} ± {np.std(f1s):.4f}")
+        print(f"MAE     : {np.mean(maes):.4f} ± {np.std(maes):.4f}")
+
+        pooled_across_seeds[model_seed] = per_fold
+
+    # Pooled summary across seeds (only when multi-seed)
+    if len(model_seeds) > 1:
+        pooled_qwks = [np.mean([f["qwk"] for f in pooled_across_seeds[s]])
+                       for s in model_seeds]
+        pooled_accs = [np.mean([f["accuracy"] for f in pooled_across_seeds[s]])
+                       for s in model_seeds]
+        pooled_f1s = [np.mean([f["macro_f1"] for f in pooled_across_seeds[s]])
+                      for s in model_seeds]
+        pooled_maes = [np.mean([f["mae"] for f in pooled_across_seeds[s]])
+                       for s in model_seeds]
+        (base_out_dir / "pooled_across_seeds.json").write_text(json.dumps({
+            "model_seeds": model_seeds, "data_seed": SEED,
+            "per_seed_fold_means": {
+                str(s): {
+                    "qwk": float(np.mean([f["qwk"] for f in pooled_across_seeds[s]])),
+                    "accuracy": float(np.mean([f["accuracy"] for f in pooled_across_seeds[s]])),
+                    "macro_f1": float(np.mean([f["macro_f1"] for f in pooled_across_seeds[s]])),
+                    "mae": float(np.mean([f["mae"] for f in pooled_across_seeds[s]])),
+                } for s in model_seeds
             },
-            "per_fold": per_fold,
-            "n_folds_completed": len(per_fold),
-            "elapsed_sec": time.time() - t_global,
+            "pooled": {
+                "qwk_mean": float(np.mean(pooled_qwks)),
+                "qwk_std": float(np.std(pooled_qwks)),
+                "accuracy_mean": float(np.mean(pooled_accs)),
+                "accuracy_std": float(np.std(pooled_accs)),
+                "macro_f1_mean": float(np.mean(pooled_f1s)),
+                "macro_f1_std": float(np.std(pooled_f1s)),
+                "mae_mean": float(np.mean(pooled_maes)),
+                "mae_std": float(np.std(pooled_maes)),
+            },
+            "elapsed_sec_total": time.time() - t_global,
         }, indent=2))
-
-    # Aggregate
-    qwks = [f["qwk"] for f in per_fold]
-    accs = [f["accuracy"] for f in per_fold]
-    f1s = [f["macro_f1"] for f in per_fold]
-    maes = [f["mae"] for f in per_fold]
-
-    print("\n" + "=" * 78)
-    print(f"LoRA OrdinalCapsNet  —  {len(per_fold)} fold(s)  —  "
-          f"total {time.time() - t_global:.1f}s")
-    print("=" * 78)
-    print(f"QWK     : {np.mean(qwks):.4f} ± {np.std(qwks):.4f}  "
-          f"(fold QWKs: {[f'{q:.4f}' for q in qwks]})")
-    print(f"Accuracy: {np.mean(accs):.4f} ± {np.std(accs):.4f}")
-    print(f"Macro F1: {np.mean(f1s):.4f} ± {np.std(f1s):.4f}")
-    print(f"MAE     : {np.mean(maes):.4f} ± {np.std(maes):.4f}")
+        print("\n" + "#" * 78)
+        print(f"# POOLED ACROSS {len(model_seeds)} SEEDS")
+        print("#" * 78)
+        print(f"QWK     : {np.mean(pooled_qwks):.4f} ± {np.std(pooled_qwks):.4f}  "
+              f"(seed means: {[f'{q:.4f}' for q in pooled_qwks]})")
+        print(f"Accuracy: {np.mean(pooled_accs):.4f} ± {np.std(pooled_accs):.4f}")
+        print(f"Macro F1: {np.mean(pooled_f1s):.4f} ± {np.std(pooled_f1s):.4f}")
+        print(f"MAE     : {np.mean(pooled_maes):.4f} ± {np.std(pooled_maes):.4f}")
+        print(f"Pooled JSON -> {base_out_dir}/pooled_across_seeds.json")
 
 
 if __name__ == "__main__":
