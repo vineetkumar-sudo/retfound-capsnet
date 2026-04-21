@@ -53,12 +53,14 @@
 - `uv run python scripts/make_architecture_diagram.py` — Day 7 architecture pipeline figure
 - `uv run python scripts/extract_idrid_features.py` / `run_idrid.py` / `cross_dataset_aptos_to_idrid.py` / `aggregate_day8.py` / `make_day8_figures.py` — Day 8 IDRiD + cross-dataset
 - `uv run python scripts/extract_messidor2_features.py` / `run_messidor2.py` / `cross_dataset_aptos_to_messidor2.py` / `aggregate_day9.py` / `make_day9_figures.py [--strict]` — Day 9 Messidor-2 + cross-dataset
+- `uv run python scripts/run_lora_ordinal.py [--resume] [--force-redo]` — LoRA fine-tune: RETFound ViT-L (frozen) + LoRA r=8 adapters on `attn.qkv` + Ordinal CapsNet head. `--resume` skips folds whose `preds_fold{N}.npz` already exists — safe to Ctrl-C then restart. No W&B by design.
 - `uv add <pkg>` — add dependency
 
 ## Experimental findings
 
 ### Within-dataset
-- **APTOS Day 3 champion**: ordinal CapsNet + margin loss → 3 seeds × 5-fold CV QWK 0.8932 ± 0.0004 (MAE 0.254 ± 0.002 — best in ablation table), frozen 10% holdout QWK ≈ 0.883. Wins QWK + MAE; MLP+CE wins Accuracy narrowly (0.8064), Vanilla CapsNet wins Macro F1 (0.6327) — ordinal trades raw top-1 accuracy for fewer distant errors (what QWK / MAE reward).
+- **APTOS Day 3 champion (frozen backbone)**: ordinal CapsNet + margin loss → 3 seeds × 5-fold CV QWK 0.8932 ± 0.0004 (MAE 0.254 ± 0.002 — best in ablation table), frozen 10% holdout QWK ≈ 0.883. Wins QWK + MAE; MLP+CE wins Accuracy narrowly (0.8064), Vanilla CapsNet wins Macro F1 (0.6327) — ordinal trades raw top-1 accuracy for fewer distant errors (what QWK / MAE reward). ~295K trainable params, 115 s full 5-fold CV on MPS.
+- **APTOS LoRA fine-tune (Day 10-ish exploratory)**: RETFound ViT-L with LoRA rank 8 (α=16, dropout 0.05, targets fused `attn.qkv` in all 24 blocks) + same Ordinal CapsNet head. Single-seed 5-fold CV → QWK 0.9139 ± 0.0127 (every fold individually beats frozen), Accuracy 0.8206, Macro F1 0.6576, MAE 0.215. **+0.021 QWK / −0.039 MAE over frozen**. ~1.08 M trainable (303 M frozen). Per-fold runtime ≈ 65–85 min on MPS. Driver: `scripts/run_lora_ordinal.py --epochs 20 --patience 8 --batch-size 8 --resume`. Implication for the paper: offer frozen as the compute-efficient tier (runs on consumer hardware in 2 min) and LoRA as the performance tier (1.1 M params, still pocket-size vs 307 M full fine-tune).
 - **IDRiD (Day 8, 413 train / 103 test)**: Ordinal wins *val* QWK (0.7557) but MLP+MSE wins *test* QWK (0.4652 vs Ordinal 0.4456). Every model drops ~0.30 QWK val→test equally — an IDRiD split characteristic, not a CapsNet weakness.
 - **Messidor-2 (Day 9, 5-fold CV on 1,744 gradable)**: Ordinal wins QWK cleanly — 0.6065 ± 0.036 vs next-best 0.5566 (MLP+MSE). Largest within-dataset lead in the paper. Per-class: Mild +28.5 pp, Severe +24.0 pp, PDR +20.0 pp vs Vanilla (Grade 0 regresses −18 pp — the known safety-bias tradeoff).
 

@@ -36,6 +36,7 @@ ROW_SPECS = [
     ("Ordinal CapsNet",        "ordinal_capsnet",     "ordinal",       ("results/ordinal_capsnet",),"3 seeds x 5-fold"),
     ("+ Asymmetric loss",      "ordinal_asymmetric",  "ordinal",       ("results/asymmetric_ordinal/A_baseline",), "3 seeds x 5-fold"),
     ("+ KC Loss (gamma=0.3)",  "ordinal_kc_loss",     "ordinal",       ("results/ordinal_kc/kc_gamma_0p30",),      "3 seeds x 5-fold"),
+    ("Ordinal CapsNet + LoRA", "ordinal_lora",        "lora",          ("results/lora_ordinal_capsnet",),          "5-fold, seed=42, LoRA r=8"),
 ]
 
 BASELINES_JSON = Path("results/baselines/summary.json")
@@ -99,6 +100,41 @@ def row_from_baseline(display: str, baseline_key: str) -> dict:
         "MacroF1_mean": res["macro_f1_mean"], "MacroF1_std": res["macro_f1_std"],
         "MAE_mean": mae_m, "MAE_std": mae_s,
         "_mae_sources": [mae_src],
+    }
+
+
+def row_from_lora(display: str, results_dir: Path) -> dict:
+    """LoRA fine-tuned row. Single seed, 5-fold CV; preds_fold*.npz already on disk."""
+    s = json.load((results_dir / "summary.json").open())
+    per_fold = s.get("per_fold", [])
+    # per_fold entries already carry qwk/accuracy/macro_f1/mae computed at fold
+    # completion time (from src.evaluate.compute_all_metrics in the runner), but
+    # for consistency with the other rows we recompute from the saved npz.
+    npz = sorted(results_dir.glob("preds_fold*.npz"))
+    assert npz, f"No preds_fold*.npz in {results_dir}"
+    per = per_fold_metrics(npz)
+    qwk_mean, qwk_std = per["qwk"]
+    acc_mean, acc_std = per["accuracy"]
+    f1_mean, f1_std = per["macro_f1"]
+    mae_mean, mae_std = per["mae"]
+    # Sanity: the runner-reported per-fold QWK should match the recomputed one.
+    if per_fold:
+        runner_qwks = [f["qwk"] for f in per_fold]
+        recomputed_per_fold = [
+            compute_all_metrics(np.load(p)["y_true"], np.load(p)["y_pred"])["qwk"]
+            for p in npz
+        ]
+        for rq, cq, f_idx in zip(runner_qwks, recomputed_per_fold, range(len(per_fold))):
+            if abs(rq - cq) > 1e-6:
+                print(f"  [row_from_lora] WARN fold {f_idx + 1}: "
+                      f"runner qwk={rq:.6f} vs recomputed={cq:.6f} — drift")
+    return {
+        "Model": display,
+        "QWK_mean": qwk_mean, "QWK_std": qwk_std,
+        "Accuracy_mean": acc_mean, "Accuracy_std": acc_std,
+        "MacroF1_mean": f1_mean, "MacroF1_std": f1_std,
+        "MAE_mean": mae_mean, "MAE_std": mae_std,
+        "_mae_sources": ["preds"],
     }
 
 
@@ -188,6 +224,8 @@ def build_rows() -> list[dict]:
             row = row_from_capsnet(display, Path(args[0]))
         elif kind == "ordinal":
             row = row_from_ordinal(display, Path(args[0]))
+        elif kind == "lora":
+            row = row_from_lora(display, Path(args[0]))
         else:
             raise ValueError(kind)
         row["CanonicalID"] = canonical_id
@@ -275,12 +313,19 @@ def write_md(rows: list[dict], path: Path) -> None:
 
 
 def per_class_breakdown(out_path: Path) -> None:
-    """Grade 0..4 accuracy: Vanilla vs Ordinal (seed 42), plus delta."""
+    """Grade 0..4 accuracy: Vanilla vs Ordinal (frozen seed 42) vs LoRA Ordinal.
+
+    Delta is computed between Vanilla and LoRA (the largest-step comparison the
+    paper highlights). Ordinal (frozen) is kept as an intermediate reference
+    column so readers can see both the architecture lift (Vanilla -> Ordinal)
+    and the backbone-tuning lift (Ordinal -> Ordinal+LoRA).
+    """
     vanilla_npz = sorted(Path("results/capsnet").glob("preds_fold*.npz"))
     # Prefer seed42/ subdir for ordinal (new multi-seed layout); fall back to top level.
     ordinal_npz = sorted(Path("results/ordinal_capsnet/seed42").glob("preds_fold*.npz"))
     if not ordinal_npz:
         ordinal_npz = sorted(Path("results/ordinal_capsnet").glob("preds_fold*.npz"))
+    lora_npz = sorted(Path("results/lora_ordinal_capsnet").glob("preds_fold*.npz"))
     if not vanilla_npz or not ordinal_npz:
         print("[per_class_breakdown] Skipping — preds not on disk yet")
         return
@@ -288,6 +333,9 @@ def per_class_breakdown(out_path: Path) -> None:
     v = pool_preds(vanilla_npz); o = pool_preds(ordinal_npz)
     assert v is not None and o is not None
     vy, vp = v; oy, op = o
+
+    lora_pool = pool_preds(lora_npz) if lora_npz else None
+    ly, lp = lora_pool if lora_pool is not None else (None, None)
 
     import csv
     class_names = ["No DR", "Mild", "Moderate", "Severe", "PDR"]
@@ -297,29 +345,43 @@ def per_class_breakdown(out_path: Path) -> None:
         mask_o = oy == g
         acc_v = float((vp[mask_v] == g).mean()) * 100 if mask_v.sum() else float("nan")
         acc_o = float((op[mask_o] == g).mean()) * 100 if mask_o.sum() else float("nan")
-        delta = acc_o - acc_v
-        if delta > 5:  note = "Major improvement"
+        if ly is not None and lp is not None:
+            mask_l = ly == g
+            acc_l = float((lp[mask_l] == g).mean()) * 100 if mask_l.sum() else float("nan")
+        else:
+            acc_l = float("nan")
+        # Delta is Vanilla -> LoRA (the paper's biggest comparison)
+        delta = acc_l - acc_v if not np.isnan(acc_l) else acc_o - acc_v
+        reference = "LoRA" if not np.isnan(acc_l) else "Ordinal"
+        if delta > 5:   note = "Major improvement"
         elif delta > 1: note = "Improvement"
         elif delta > -1: note = "Stable"
         elif delta > -5: note = "Minor drop"
-        else:           note = "Regression"
+        else:            note = "Regression"
         rows.append({
             "Grade": f"{g} ({class_names[g]})",
             "Vanilla_%": f"{acc_v:.1f}",
             "Ordinal_%": f"{acc_o:.1f}",
-            "Delta_pp": f"{delta:+.1f}",
+            "LoRA_%": f"{acc_l:.1f}" if not np.isnan(acc_l) else "—",
+            "Delta_pp": f"{delta:+.1f}  (Vanilla→{reference})",
             "Note": note,
         })
 
     with out_path.open("w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=["Grade", "Vanilla_%", "Ordinal_%", "Delta_pp", "Note"])
+        w = csv.DictWriter(
+            f,
+            fieldnames=["Grade", "Vanilla_%", "Ordinal_%", "LoRA_%", "Delta_pp", "Note"],
+        )
         w.writeheader()
         for r in rows:
             w.writerow(r)
 
     print(f"\nPer-class breakdown -> {out_path}")
     for r in rows:
-        print(f"  {r['Grade']:<14s}  Vanilla={r['Vanilla_%']}%  Ordinal={r['Ordinal_%']}%  delta={r['Delta_pp']}  ({r['Note']})")
+        lora_disp = f"  LoRA={r['LoRA_%']}%" if r["LoRA_%"] != "—" else ""
+        print(f"  {r['Grade']:<14s}  Vanilla={r['Vanilla_%']}%  "
+              f"Ordinal={r['Ordinal_%']}%{lora_disp}  "
+              f"delta={r['Delta_pp']}  ({r['Note']})")
 
 
 def main() -> None:
