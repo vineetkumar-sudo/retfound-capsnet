@@ -129,13 +129,18 @@ def evaluate(model: RetfoundLoraOrdinalCapsNet, loader: DataLoader,
              loss_fn: OrdinalMarginLoss, device: torch.device) -> dict:
     model.eval()
     all_lengths, all_labels, loss_sum, n = [], [], 0.0, 0
+    use_bf16 = device.type == "cuda"
     for X, y in loader:
         X = X.to(device)
         y_dev = y.to(device)
-        L = model(X)["head_lengths"]
-        loss_sum += loss_fn(L, y_dev).item() * X.size(0)
+        with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16,
+                                enabled=use_bf16):
+            L = model(X)["head_lengths"]
+            loss_val = loss_fn(L, y_dev)
+        loss_sum += loss_val.item() * X.size(0)
         n += X.size(0)
-        all_lengths.append(L.cpu())
+        # Cast back to fp32 before CPU transfer — downstream metrics / UQ assume fp32.
+        all_lengths.append(L.float().cpu())
         all_labels.append(y)
     lengths = torch.cat(all_lengths, dim=0)
     labels = torch.cat(all_labels, dim=0).numpy().astype(np.int64)
@@ -172,6 +177,8 @@ def train_fold(fold_idx: int, ids_tr, y_tr, ids_va, y_va,
     history: list[dict] = []
 
     t_fold = time.time()
+    # bf16 autocast on CUDA (H100/A100/T4+) ~2-3x speedup; no-op on MPS/CPU.
+    use_bf16 = device.type == "cuda"
     for epoch in range(1, epochs + 1):
         model.train()
         t0 = time.time()
@@ -179,8 +186,10 @@ def train_fold(fold_idx: int, ids_tr, y_tr, ids_va, y_va,
         for X, y in tr_loader:
             X, y = X.to(device), y.to(device)
             optim.zero_grad()
-            L = model(X)["head_lengths"]
-            loss = loss_fn(L, y)
+            with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16,
+                                    enabled=use_bf16):
+                L = model(X)["head_lengths"]
+                loss = loss_fn(L, y)
             loss.backward()
             optim.step()
             train_loss_sum += loss.item() * X.size(0)
