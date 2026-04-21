@@ -2,9 +2,16 @@
 
 5-fold stratified CV, W&B tracking, local metric plots saved to results/baselines/.
 
-Usage: uv run python scripts/run_baselines.py
+Usage: uv run python scripts/run_baselines.py [--seeds 42,123,456] [--no-wandb]
+
+Multi-seed runs write per-seed outputs to `results/baselines/seed{S}/`;
+single-seed (default or `--seeds 42`) preserves the legacy flat layout at
+`results/baselines/` for backward compatibility with prior aggregator runs.
+Fold splits and holdout are always governed by `cfg.data.seed` — only model
+init RNG varies across seeds (matching scripts/run_ordinal_capsnet.py).
 """
 
+import argparse
 import sys
 
 sys.path.insert(0, ".")
@@ -354,44 +361,50 @@ def build_model(bcfg: dict, feature_dim: int, num_classes: int) -> nn.Module:
         raise ValueError(f"Unknown model type: {t}")
 
 
-def main():
-    cfg = load_config()
-    device = get_device()
-    seed = cfg["data"]["seed"]
-    n_folds = cfg["data"]["n_folds"]
-    holdout_frac = cfg["data"].get("holdout_split", 0.10)
-    patience = cfg["training"]["early_stopping_patience"]
-    batch_size = cfg["training"]["batch_size"]
-    weight_decay = cfg["training"].get("weight_decay", 1e-4)
-    feature_dim = cfg["data"]["feature_dim"]
-    num_classes = cfg["data"]["num_classes"]
-    plots_dir = Path(cfg["output"]["plots_dir"])
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser()
+    p.add_argument("--seeds", default=None,
+                   help="Comma-separated model-init seeds. If set, each seed's outputs "
+                        "go to plots_dir/seed{S}/. If unset, uses cfg.data.seed "
+                        "(backwards-compatible flat layout).")
+    p.add_argument("--no-wandb", action="store_true", help="Disable W&B logging")
+    return p.parse_args()
+
+
+def parse_seeds(arg: str | None, default_seed: int) -> list[int]:
+    if arg is None:
+        return [default_seed]
+    return [int(s) for s in arg.split(",") if s.strip()]
+
+
+def run_one_seed(
+    cfg: dict,
+    device: torch.device,
+    data_seed: int,
+    model_seed: int,
+    n_folds: int,
+    holdout_frac: float,
+    patience: int,
+    batch_size: int,
+    weight_decay: float,
+    feature_dim: int,
+    num_classes: int,
+    features: np.ndarray,
+    labels: np.ndarray,
+    X_holdout: np.ndarray,
+    y_holdout: np.ndarray,
+    plots_dir: Path,
+    use_wandb: bool,
+    seed_suffix: str,
+) -> dict:
+    """Run all baselines for one model-init seed. Writes per-seed outputs under `plots_dir`.
+
+    Data splits (train_test_split holdout + StratifiedKFold folds) are governed by
+    `data_seed` and are identical across seeds; only the model init RNG varies.
+    Returns the per-seed `all_results` dict.
+    """
     plots_dir.mkdir(parents=True, exist_ok=True)
-
-    print(f"Device: {device}")
-    print(f"K-Fold CV: {n_folds} folds, seed={seed}, patience={patience}, weight_decay={weight_decay}")
-    print(f"Holdout: {holdout_frac * 100:.0f}% frozen, never touched by CV\n")
-
-    # Load data
-    features_all = np.load(cfg["data"]["features_path"])
-    labels_all = np.load(cfg["data"]["labels_path"])
-    print(f"Dataset: {features_all.shape[0]} samples, {features_all.shape[1]}-dim features")
-    print(f"Full label distribution: {np.bincount(labels_all)}")
-
-    # --- Holdout split (frozen, same across all experiments via seed) ---
-    from sklearn.model_selection import train_test_split
-    pool_idx, holdout_idx = train_test_split(
-        np.arange(len(features_all)),
-        test_size=holdout_frac, stratify=labels_all, random_state=seed,
-    )
-    features = features_all[pool_idx]
-    labels = labels_all[pool_idx]
-    X_holdout = features_all[holdout_idx]
-    y_holdout = labels_all[holdout_idx]
-    print(f"CV pool: {len(features)} samples, dist={np.bincount(labels)}")
-    print(f"Holdout: {len(X_holdout)} samples, dist={np.bincount(y_holdout)}\n")
-
-    skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
+    skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=data_seed)
 
     all_histories: dict[str, list[list[dict]]] = {}
     all_results: dict[str, dict] = {}
@@ -409,18 +422,21 @@ def main():
         print(f"{name} — {n_folds}-fold CV + holdout eval")
         print(f"{'=' * 60}")
 
-        run = wandb.init(
-            project=cfg["wandb"]["project"],
-            group=cfg["wandb"]["group"],
-            name=name,
-            config={
-                "model": name,
-                **{k: v for k, v in bcfg.items() if k != "name"},
-                "n_folds": n_folds, "seed": seed, "patience": patience,
-                "weight_decay": weight_decay, "holdout_frac": holdout_frac,
-            },
-            reinit="finish_previous",
-        )
+        run = None
+        if use_wandb:
+            run = wandb.init(
+                project=cfg["wandb"]["project"],
+                group=cfg["wandb"]["group"],
+                name=f"{name}{seed_suffix}",
+                config={
+                    "model": name,
+                    **{k: v for k, v in bcfg.items() if k != "name"},
+                    "n_folds": n_folds, "data_seed": data_seed, "model_seed": model_seed,
+                    "patience": patience,
+                    "weight_decay": weight_decay, "holdout_frac": holdout_frac,
+                },
+                reinit="finish_previous",
+            )
 
         fold_metrics = []
         fold_histories = []
@@ -437,8 +453,8 @@ def main():
             X_train, X_val = features[train_idx], features[val_idx]
             y_train, y_val = labels[train_idx], labels[val_idx]
 
-            torch.manual_seed(seed + fold_idx)
-            np.random.seed(seed + fold_idx)
+            torch.manual_seed(model_seed + fold_idx)
+            np.random.seed(model_seed + fold_idx)
 
             train_loader, val_loader = make_loaders(
                 X_train, X_val, y_train, y_val,
@@ -485,15 +501,16 @@ def main():
                   f"|  holdout QWK={holdout_m['qwk']:.4f} Acc={holdout_m['accuracy']:.4f} F1={holdout_m['macro_f1']:.4f}  "
                   f"(best@{metrics['best_epoch']}, stopped@{metrics['final_epoch']})")
 
-            wandb.log({
-                f"fold_{fold_idx+1}/val_qwk": metrics["qwk"],
-                f"fold_{fold_idx+1}/val_accuracy": metrics["accuracy"],
-                f"fold_{fold_idx+1}/val_macro_f1": metrics["macro_f1"],
-                f"fold_{fold_idx+1}/holdout_qwk": holdout_m["qwk"],
-                f"fold_{fold_idx+1}/holdout_accuracy": holdout_m["accuracy"],
-                f"fold_{fold_idx+1}/holdout_macro_f1": holdout_m["macro_f1"],
-                f"fold_{fold_idx+1}/best_epoch": metrics["best_epoch"],
-            })
+            if use_wandb:
+                wandb.log({
+                    f"fold_{fold_idx+1}/val_qwk": metrics["qwk"],
+                    f"fold_{fold_idx+1}/val_accuracy": metrics["accuracy"],
+                    f"fold_{fold_idx+1}/val_macro_f1": metrics["macro_f1"],
+                    f"fold_{fold_idx+1}/holdout_qwk": holdout_m["qwk"],
+                    f"fold_{fold_idx+1}/holdout_accuracy": holdout_m["accuracy"],
+                    f"fold_{fold_idx+1}/holdout_macro_f1": holdout_m["macro_f1"],
+                    f"fold_{fold_idx+1}/best_epoch": metrics["best_epoch"],
+                })
 
         qwks = [m["qwk"] for m in fold_metrics]
         accs = [m["accuracy"] for m in fold_metrics]
@@ -537,29 +554,29 @@ def main():
         print(f"  Train-Val QWK gap (at best epoch, mean): {result['train_val_qwk_gap_mean']:+.4f}")
         print()
 
-        # Log aggregates to wandb
-        wandb.log({
-            "mean/val_qwk": result["qwk_mean"],
-            "mean/val_accuracy": result["accuracy_mean"],
-            "mean/val_macro_f1": result["macro_f1_mean"],
-            "mean/holdout_qwk": result["holdout_qwk_mean"],
-            "mean/holdout_accuracy": result["holdout_accuracy_mean"],
-            "mean/holdout_macro_f1": result["holdout_macro_f1_mean"],
-            "mean/train_val_qwk_gap": result["train_val_qwk_gap_mean"],
-        })
-        wandb.summary.update({
-            "qwk_mean": result["qwk_mean"], "qwk_std": result["qwk_std"],
-            "accuracy_mean": result["accuracy_mean"], "accuracy_std": result["accuracy_std"],
-            "macro_f1_mean": result["macro_f1_mean"], "macro_f1_std": result["macro_f1_std"],
-            "holdout_qwk_mean": result["holdout_qwk_mean"],
-            "holdout_accuracy_mean": result["holdout_accuracy_mean"],
-            "holdout_macro_f1_mean": result["holdout_macro_f1_mean"],
-            "train_val_qwk_gap_mean": result["train_val_qwk_gap_mean"],
-        })
-        run.finish()
+        if use_wandb and run is not None:
+            wandb.log({
+                "mean/val_qwk": result["qwk_mean"],
+                "mean/val_accuracy": result["accuracy_mean"],
+                "mean/val_macro_f1": result["macro_f1_mean"],
+                "mean/holdout_qwk": result["holdout_qwk_mean"],
+                "mean/holdout_accuracy": result["holdout_accuracy_mean"],
+                "mean/holdout_macro_f1": result["holdout_macro_f1_mean"],
+                "mean/train_val_qwk_gap": result["train_val_qwk_gap_mean"],
+            })
+            wandb.summary.update({
+                "qwk_mean": result["qwk_mean"], "qwk_std": result["qwk_std"],
+                "accuracy_mean": result["accuracy_mean"], "accuracy_std": result["accuracy_std"],
+                "macro_f1_mean": result["macro_f1_mean"], "macro_f1_std": result["macro_f1_std"],
+                "holdout_qwk_mean": result["holdout_qwk_mean"],
+                "holdout_accuracy_mean": result["holdout_accuracy_mean"],
+                "holdout_macro_f1_mean": result["holdout_macro_f1_mean"],
+                "train_val_qwk_gap_mean": result["train_val_qwk_gap_mean"],
+            })
+            run.finish()
 
     # -----------------------------------------------------------------------
-    # Generate local plots
+    # Generate local plots (per seed)
     # -----------------------------------------------------------------------
     print("Generating plots...")
     plot_fold_histories(all_histories, plots_dir)
@@ -567,11 +584,11 @@ def main():
     plot_summary_bars(all_results, plots_dir)
 
     # -----------------------------------------------------------------------
-    # Summary table
+    # Summary table (per seed)
     # -----------------------------------------------------------------------
     print()
     print("=" * 100)
-    print("DAY 1 RESULTS — RETFound Feature Baselines (5-Fold CV + Holdout)")
+    print(f"DAY 1 RESULTS — RETFound Feature Baselines (5-Fold CV + Holdout){seed_suffix}")
     print("=" * 100)
     print(f"{'Model':<27s} {'Val QWK':>14s} {'Holdout QWK':>14s} {'Val Acc':>14s} {'Holdout Acc':>14s} {'T-V gap':>10s}")
     print("-" * 100)
@@ -587,42 +604,150 @@ def main():
           "Big positive = overfitting.")
     print()
 
-    # Also save full results to JSON for reuse
+    # Save per-seed summary JSON
     import json
     (plots_dir / "summary.json").write_text(json.dumps({
         "config": {
-            "n_folds": n_folds, "seed": seed, "patience": patience,
+            "n_folds": n_folds, "data_seed": data_seed, "model_seed": model_seed,
+            "patience": patience,
             "weight_decay": weight_decay, "holdout_frac": holdout_frac,
         },
         "results": all_results,
     }, indent=2))
 
-    # W&B summary run with comparison table
-    run = wandb.init(
-        project=cfg["wandb"]["project"],
-        group=cfg["wandb"]["group"],
-        name="day1-summary-5fold",
-        reinit="finish_previous",
-    )
-    summary_table = wandb.Table(
-        columns=["Model", "QWK (mean)", "QWK (std)", "Accuracy (mean)", "Accuracy (std)",
-                 "Macro F1 (mean)", "Macro F1 (std)"],
-        data=[
-            [name, r["qwk_mean"], r["qwk_std"], r["accuracy_mean"], r["accuracy_std"],
-             r["macro_f1_mean"], r["macro_f1_std"]]
-            for name, r in all_results.items()
-        ],
-    )
-    wandb.log({"day1_5fold_results": summary_table})
-
-    # Upload local plots as wandb images
-    for img_path in sorted(plots_dir.glob("*.png")):
-        wandb.log({img_path.stem: wandb.Image(str(img_path))})
-
-    run.finish()
+    # Optional W&B summary run with comparison table (per seed)
+    if use_wandb:
+        run = wandb.init(
+            project=cfg["wandb"]["project"],
+            group=cfg["wandb"]["group"],
+            name=f"day1-summary-5fold{seed_suffix}",
+            reinit="finish_previous",
+        )
+        summary_table = wandb.Table(
+            columns=["Model", "QWK (mean)", "QWK (std)", "Accuracy (mean)", "Accuracy (std)",
+                     "Macro F1 (mean)", "Macro F1 (std)"],
+            data=[
+                [name, r["qwk_mean"], r["qwk_std"], r["accuracy_mean"], r["accuracy_std"],
+                 r["macro_f1_mean"], r["macro_f1_std"]]
+                for name, r in all_results.items()
+            ],
+        )
+        wandb.log({"day1_5fold_results": summary_table})
+        for img_path in sorted(plots_dir.glob("*.png")):
+            wandb.log({img_path.stem: wandb.Image(str(img_path))})
+        run.finish()
 
     print(f"\nPlots saved to {plots_dir}/")
-    print("All results logged to W&B project: retfound-capsnet")
+    return all_results
+
+
+def main():
+    args = parse_args()
+    cfg = load_config()
+    device = get_device()
+    data_seed = cfg["data"]["seed"]
+    n_folds = cfg["data"]["n_folds"]
+    holdout_frac = cfg["data"].get("holdout_split", 0.10)
+    patience = cfg["training"]["early_stopping_patience"]
+    batch_size = cfg["training"]["batch_size"]
+    weight_decay = cfg["training"].get("weight_decay", 1e-4)
+    feature_dim = cfg["data"]["feature_dim"]
+    num_classes = cfg["data"]["num_classes"]
+    base_plots_dir = Path(cfg["output"]["plots_dir"])
+    base_plots_dir.mkdir(parents=True, exist_ok=True)
+
+    use_wandb = (not args.no_wandb) and cfg.get("wandb", {}).get("enabled", True)
+    model_seeds = parse_seeds(args.seeds, data_seed)
+
+    print(f"Device: {device}")
+    print(f"K-Fold CV: {n_folds} folds, data_seed={data_seed}, "
+          f"patience={patience}, weight_decay={weight_decay}")
+    print(f"Holdout: {holdout_frac * 100:.0f}% frozen, never touched by CV")
+    print(f"Model seeds: {model_seeds}\n")
+
+    # Load data once (splits are identical across seeds via data_seed)
+    features_all = np.load(cfg["data"]["features_path"])
+    labels_all = np.load(cfg["data"]["labels_path"])
+    print(f"Dataset: {features_all.shape[0]} samples, {features_all.shape[1]}-dim features")
+    print(f"Full label distribution: {np.bincount(labels_all)}")
+
+    from sklearn.model_selection import train_test_split
+    pool_idx, holdout_idx = train_test_split(
+        np.arange(len(features_all)),
+        test_size=holdout_frac, stratify=labels_all, random_state=data_seed,
+    )
+    features = features_all[pool_idx]
+    labels = labels_all[pool_idx]
+    X_holdout = features_all[holdout_idx]
+    y_holdout = labels_all[holdout_idx]
+    print(f"CV pool: {len(features)} samples, dist={np.bincount(labels)}")
+    print(f"Holdout: {len(X_holdout)} samples, dist={np.bincount(y_holdout)}\n")
+
+    # Default single-seed with no --seeds flag writes to the flat legacy layout
+    # to keep prior aggregator runs comparable. Multi-seed or explicit --seeds
+    # always uses per-seed subdirs.
+    is_default_single = (args.seeds is None and len(model_seeds) == 1
+                         and model_seeds[0] == data_seed)
+
+    per_seed_results: dict[int, dict] = {}
+    for model_seed in model_seeds:
+        if is_default_single:
+            seed_plots_dir = base_plots_dir
+            seed_suffix = ""
+        else:
+            seed_plots_dir = base_plots_dir / f"seed{model_seed}"
+            seed_suffix = f" (seed={model_seed})"
+        print("\n" + "#" * 100)
+        print(f"### MODEL SEED {model_seed}   ->   {seed_plots_dir}")
+        print("#" * 100 + "\n")
+        per_seed_results[model_seed] = run_one_seed(
+            cfg=cfg, device=device,
+            data_seed=data_seed, model_seed=model_seed,
+            n_folds=n_folds, holdout_frac=holdout_frac,
+            patience=patience, batch_size=batch_size,
+            weight_decay=weight_decay,
+            feature_dim=feature_dim, num_classes=num_classes,
+            features=features, labels=labels,
+            X_holdout=X_holdout, y_holdout=y_holdout,
+            plots_dir=seed_plots_dir,
+            use_wandb=use_wandb,
+            seed_suffix=seed_suffix,
+        )
+
+    # Pooled across-seeds summary at the base dir (only when multi-seed)
+    if len(model_seeds) > 1:
+        import json
+        model_names = list(next(iter(per_seed_results.values())).keys())
+        pooled = {}
+        for name in model_names:
+            per_seed_qwk = [per_seed_results[s][name]["qwk_mean"] for s in model_seeds]
+            per_seed_acc = [per_seed_results[s][name]["accuracy_mean"] for s in model_seeds]
+            per_seed_f1 = [per_seed_results[s][name]["macro_f1_mean"] for s in model_seeds]
+            per_seed_mae = [per_seed_results[s][name]["mae_mean"] for s in model_seeds]
+            pooled[name] = {
+                "qwk_mean_across_seeds": float(np.mean(per_seed_qwk)),
+                "qwk_std_across_seeds": float(np.std(per_seed_qwk)),
+                "accuracy_mean_across_seeds": float(np.mean(per_seed_acc)),
+                "accuracy_std_across_seeds": float(np.std(per_seed_acc)),
+                "macro_f1_mean_across_seeds": float(np.mean(per_seed_f1)),
+                "macro_f1_std_across_seeds": float(np.std(per_seed_f1)),
+                "mae_mean_across_seeds": float(np.mean(per_seed_mae)),
+                "mae_std_across_seeds": float(np.std(per_seed_mae)),
+                "per_seed_qwk": per_seed_qwk,
+            }
+        (base_plots_dir / "pooled_across_seeds.json").write_text(json.dumps({
+            "model_seeds": model_seeds, "data_seed": data_seed,
+            "pooled": pooled,
+        }, indent=2))
+        print("\n" + "=" * 100)
+        print(f"POOLED ACROSS {len(model_seeds)} SEEDS")
+        print("=" * 100)
+        for name, p in pooled.items():
+            print(f"{name:<27s} "
+                  f"QWK={p['qwk_mean_across_seeds']:.4f}+/-{p['qwk_std_across_seeds']:.4f}  "
+                  f"Acc={p['accuracy_mean_across_seeds']:.4f}+/-{p['accuracy_std_across_seeds']:.4f}  "
+                  f"F1={p['macro_f1_mean_across_seeds']:.4f}+/-{p['macro_f1_std_across_seeds']:.4f}")
+        print(f"Pooled JSON -> {base_plots_dir}/pooled_across_seeds.json")
 
 
 if __name__ == "__main__":

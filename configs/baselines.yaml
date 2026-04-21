@@ -18,7 +18,7 @@ output:
   plots_dir: results/baselines
 
 wandb:
-  project: retfound-capsnet
+  project: retfound-capsnet-final
   group: day1-baselines-holdout
 
 baselines:

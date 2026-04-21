@@ -339,6 +339,7 @@ def build_model(cfg: dict, feature_dim: int, num_classes: int) -> OrdinalCapsNet
         caps_dim=mc["caps_dim"],
         routing_iters=mc["routing_iters"],
         dropout=mc.get("dropout", 0.0),
+        squash_variant=mc.get("squash_variant", "sabour"),
     )
 
 

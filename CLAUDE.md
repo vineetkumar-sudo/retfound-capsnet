@@ -69,8 +69,14 @@
 - **APTOS → Messidor-2** (Day 9): QWK collapses to ~0.01 for every model. **Diagnosis: the ordinal heads' mean P(y>0) drops from 0.51 on APTOS to 0.087 on Messidor-2**, so every head fires "No" on virtually every sample and predictions collapse to Grade 0 for 1741/1744 images. Binary AUC best case 0.611 (Ordinal). This is a domain-shift finding, not a method bug — rank calibration (match predicted positive rate to train rate, as used in the earlier Kaggle submission) would likely recover a substantial fraction, but was not applied here per the "no silent fallbacks" rule.
 
 ### Loss ablations (APTOS)
-- **Day 4** (asymmetric ordinal loss): bit-identical to vanilla ordinal when symmetric λ=1.0/1.0 used (A_baseline). K-1 decomposition already produces safety bias (U/O < 1) — direction weighting is redundant.
+- **Day 4** (asymmetric ordinal loss): λ=1.0/1.0 A_baseline essentially matches vanilla ordinal — 3-seed QWK 0.8923 ± 0.0014 vs Ordinal 0.8932 ± 0.0004 (−0.0009, inside combined noise). Previous runs reported bit-identical 0.8932 = 0.8932 via a shared code path; after the Day-11 clean rerun the asymmetric loss constructor routes through a slightly different RNG path, producing a tiny seed-level drift. K-1 decomposition already produces safety bias (U/O < 1) — direction weighting is redundant.
 - **Day 5A** (KC Loss / differentiable QWK at γ=0.3): slightly worse across every column (QWK 0.8914 vs 0.8932, MAE 0.264 vs 0.254). Negative result.
+
+### Architecture ablations (APTOS)
+- **Day 11** (Gogulamudi non-uniform squash, `v = s / (1 + ‖s‖)` replacing Sabour's `v = (‖s‖² / (1 + ‖s‖²))·(s/‖s‖)` inside both PrimaryCaps and all four DigitCaps routing iterations, everything else held at the Day-3 champion config): 3 seeds × 5-fold CV (42, 123, 456) → QWK 0.8894 ± 0.0006, Acc 0.7857 ± 0.0059, F1 0.6097 ± 0.0095, MAE 0.264 ± 0.004. Vs. frozen Ordinal CapsNet 3-seed baseline (QWK 0.8932 ± 0.0004) this is −0.0038 QWK, −0.007 Acc, −0.016 F1, +0.010 MAE — small but genuinely outside seed noise (both stds are < 0.001). Negative result confirmed at multi-seed granularity. Driver: `scripts/run_ordinal_capsnet.py --config configs/ordinal_capsnet_nonuniform.yaml --seeds 42,123,456 --no-wandb` (~10 min, MPS). Plumbed via `squash_variant` kwarg on PrimaryCaps / DigitCaps / OrdinalCapsNet (default `"sabour"` keeps every prior run bit-identical).
+
+### Methodology
+- **All APTOS ablation-table rows use 3 seeds × 5-fold CV (42, 123, 456)** except LoRA (row 9) which remains single-seed due to ~10-h compute cost for multi-seed. Data splits (10 % holdout + 5-fold) are fixed by `cfg.data.seed`; only model init RNG varies. Multi-seed runners: `scripts/run_baselines.py --seeds ...`, `scripts/run_ordinal_capsnet.py --seeds ...`, or `scripts/run_capsnet.py --model-seed ... --output-dir ...` in a shell loop. Single-seed invocation preserves the legacy flat output layout for backwards-compat. Multi-seed invocation writes per-seed subdirs `plots_dir/seed{S}/`, which the Day-6 aggregator pools across.
 
 ### UQ (Day 5B, validated on 3 datasets)
 - **Prediction margin** (1 − [top1 − top2] via chain-rule probs): strongest signal everywhere. APTOS p<1e-300, IDRiD p=4.7e-4, Messidor-2 within p<1e-300 & cross p=1.9e-29.
@@ -80,5 +86,6 @@
 ### Known negative results (paper findings, not failures)
 - Day 4 asymmetric loss (no gain over vanilla ordinal)
 - Day 5A KC Loss (small loss vs margin loss)
+- Day 11 non-uniform squash (small loss vs Sabour squash; Gogulamudi's reported gain doesn't reproduce on frozen-RETFound + K-1 binary heads)
 - Cross-dataset generalisation without calibration (frozen features don't transfer out-of-domain)
 - Routing-variance UQ signal is weakly inverted

@@ -27,7 +27,7 @@ output:
   plots_dir: results/ordinal_capsnet
 
 wandb:
-  project: retfound-capsnet
+  project: retfound-capsnet-final
   group: day3-ordinal-capsnet
   name: ordinal-capsnet-vanilla
   enabled: true

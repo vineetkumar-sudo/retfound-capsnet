@@ -58,17 +58,28 @@ def save_both(fig: plt.Figure, stem: str) -> None:
 
 
 def _ordinal_preds_dir() -> Path:
-    """Return the directory holding Ordinal CapsNet seed-42 per-fold preds.
-    Prefers the Day 6 seed42/ subdir; falls back to the legacy top-level layout."""
-    seeded = Path("results/ordinal_capsnet/seed42")
-    if any(seeded.glob("preds_fold*.npz")):
-        return seeded
+    """Return the base dir for Ordinal CapsNet preds.
+
+    `pool_fold_npz` transparently pools across every seed{S}/ subdir if the
+    multi-seed layout is present, so we just return the base dir here.
+    Legacy single-seed flat layout at the same path is handled as a fallback.
+    """
     return Path("results/ordinal_capsnet")
 
 
 def pool_fold_npz(dir_: Path, keys: tuple[str, ...] = ("y_true", "y_pred")) -> dict:
-    """Concatenate per-fold arrays across preds_fold*.npz files in `dir_`."""
-    files = sorted(dir_.glob("preds_fold*.npz"))
+    """Concatenate per-fold arrays across preds_fold*.npz files in `dir_`.
+
+    Pools across every `seed{S}/` subdir when present (multi-seed layout);
+    falls back to the legacy flat `dir_/preds_fold*.npz` layout otherwise.
+    """
+    seed_dirs = sorted(dir_.glob("seed*"))
+    if seed_dirs:
+        files: list[Path] = []
+        for sd in seed_dirs:
+            files.extend(sorted(sd.glob("preds_fold*.npz")))
+    else:
+        files = sorted(dir_.glob("preds_fold*.npz"))
     if not files:
         raise FileNotFoundError(f"No preds_fold*.npz in {dir_}")
     out: dict[str, list[np.ndarray]] = {k: [] for k in keys}
@@ -152,7 +163,13 @@ def _load_uq_arrays(dir_: Path) -> dict:
     is only included when `routing_variance` is present in every npz file —
     older preds dumps predate that column and fall back to a None sentinel.
     """
-    files = sorted(dir_.glob("preds_fold*.npz"))
+    seed_dirs = sorted(dir_.glob("seed*"))
+    if seed_dirs:
+        files: list[Path] = []
+        for sd in seed_dirs:
+            files.extend(sorted(sd.glob("preds_fold*.npz")))
+    else:
+        files = sorted(dir_.glob("preds_fold*.npz"))
     if not files:
         raise FileNotFoundError(f"No preds_fold*.npz in {dir_}")
 

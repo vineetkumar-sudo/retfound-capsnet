@@ -36,7 +36,7 @@ output:
   plots_dir: results/asymmetric_ordinal
 
 wandb:
-  project: retfound-capsnet
+  project: retfound-capsnet-final
   group: day4-asymmetric
   name: asym-ordinal
   enabled: true

@@ -1,4 +1,4 @@
-# Day 2 — Vanilla CapsNet head on cached RETFound features
+# Day 11 — Ordinal CapsNet with Gogulamudi non-uniform squash on cached RETFound features
 
 data:
   features_path: data/aptos/features/train_features.npy
@@ -21,16 +21,16 @@ model:
   primary_dim: 8
   caps_dim: 16
   routing_iters: 3
-  use_decoder: false
-  reconstruction_weight: 0.0005
+  dropout: 0.1
+  squash_variant: nonuniform
 
 output:
-  plots_dir: results/capsnet
+  plots_dir: results/ordinal_capsnet_nonuniform
 
 wandb:
   project: retfound-capsnet-final
-  group: day2-capsnet-holdout
-  name: capsnet-vanilla
+  group: day11-nonuniform-squash
+  name: ordinal-capsnet-nonuniform-squash
   enabled: true
 
 demo:

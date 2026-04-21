@@ -28,13 +28,17 @@ class OrdinalCapsNet(nn.Module):
         caps_dim: int = 16,
         routing_iters: int = 3,
         dropout: float = 0.0,
+        squash_variant: str = "sabour",
     ):
         super().__init__()
         self.num_classes = num_classes
         self.num_heads = num_classes - 1
         self.caps_dim = caps_dim
+        self.squash_variant = squash_variant
 
-        self.primary = PrimaryCaps(feature_dim, num_primary, primary_dim)
+        self.primary = PrimaryCaps(
+            feature_dim, num_primary, primary_dim, squash_variant=squash_variant
+        )
         self.dropout = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
 
         # K-1 independent binary heads — each a DigitCaps with 2 output capsules
@@ -45,6 +49,7 @@ class OrdinalCapsNet(nn.Module):
                 num_classes=2,
                 caps_dim=caps_dim,
                 routing_iters=routing_iters,
+                squash_variant=squash_variant,
             )
             for _ in range(self.num_heads)
         ])

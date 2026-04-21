@@ -347,6 +347,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--no-wandb", action="store_true", help="Disable W&B logging regardless of config")
     p.add_argument("--use-decoder", action="store_true", help="Enable reconstruction decoder (override config)")
     p.add_argument("--config", default="configs/capsnet.yaml")
+    p.add_argument("--model-seed", type=int, default=None,
+                   help="Model-init RNG seed. If unset, uses cfg.data.seed (backwards-compatible). "
+                        "Data splits (holdout, K-fold) always use cfg.data.seed regardless of this flag.")
+    p.add_argument("--output-dir", default=None,
+                   help="Override cfg.output.plots_dir (useful for multi-seed runs). "
+                        "Example: --output-dir results/capsnet/seed123")
     return p.parse_args()
 
 
@@ -368,7 +374,8 @@ def main() -> None:
     cfg = load_config(args.config)
     device = get_device()
 
-    seed = cfg["data"]["seed"]
+    data_seed = cfg["data"]["seed"]
+    model_seed = args.model_seed if args.model_seed is not None else data_seed
     feature_dim = cfg["data"]["feature_dim"]
     num_classes = cfg["data"]["num_classes"]
     patience = cfg["training"]["early_stopping_patience"]
@@ -381,7 +388,7 @@ def main() -> None:
     use_decoder = args.use_decoder or cfg["model"].get("use_decoder", False)
     recon_w = cfg["model"].get("reconstruction_weight", 0.0005)
     use_wandb = cfg["wandb"].get("enabled", True) and not args.no_wandb
-    plots_dir = Path(cfg["output"]["plots_dir"])
+    plots_dir = Path(args.output_dir) if args.output_dir else Path(cfg["output"]["plots_dir"])
 
     # --- Demo overrides ---
     if args.demo:
@@ -403,19 +410,19 @@ def main() -> None:
     features_all = np.load(cfg["data"]["features_path"])
     labels_all = np.load(cfg["data"]["labels_path"])
     if args.demo:
-        rng = np.random.default_rng(seed)
+        rng = np.random.default_rng(data_seed)
         idx = rng.choice(len(features_all), size=cfg["demo"]["n_samples"], replace=False)
         features_all = features_all[idx]
         labels_all = labels_all[idx]
     print(f"Dataset: {features_all.shape[0]} samples, {features_all.shape[1]}-d features")
     print(f"Full label distribution: {np.bincount(labels_all, minlength=num_classes)}")
 
-    # --- Holdout split (frozen, same as baselines via seed) ---
+    # --- Holdout split (frozen, same as baselines via data_seed) ---
     from sklearn.model_selection import train_test_split as _tts
     if not args.demo:
         pool_idx, holdout_idx = _tts(
             np.arange(len(features_all)), test_size=holdout_frac,
-            stratify=labels_all, random_state=seed,
+            stratify=labels_all, random_state=data_seed,
         )
         features = features_all[pool_idx]
         labels = labels_all[pool_idx]
@@ -430,12 +437,14 @@ def main() -> None:
         print()
 
     # --- K-fold ---
-    skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed) if n_folds > 1 \
+    skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=data_seed) if n_folds > 1 \
         else None
 
     name = cfg["wandb"]["name"]
     if use_decoder and "decoder" not in name:
         name = f"{name}-decoder"
+    if model_seed != data_seed:
+        name = f"{name}-seed{model_seed}"
 
     run = None
     if use_wandb:
@@ -454,7 +463,8 @@ def main() -> None:
                 "use_decoder": use_decoder,
                 "reconstruction_weight": recon_w,
                 "lr": lr, "batch_size": batch_size, "epochs": epochs,
-                "patience": patience, "n_folds": n_folds, "seed": seed,
+                "patience": patience, "n_folds": n_folds,
+                "data_seed": data_seed, "model_seed": model_seed,
             },
             reinit="finish_previous",
         )
@@ -469,7 +479,7 @@ def main() -> None:
     if skf is None:
         from sklearn.model_selection import train_test_split
         tr_idx, va_idx = train_test_split(
-            np.arange(len(features)), test_size=0.2, stratify=labels, random_state=seed,
+            np.arange(len(features)), test_size=0.2, stratify=labels, random_state=data_seed,
         )
         splits = [(tr_idx, va_idx)]
     else:
@@ -487,8 +497,8 @@ def main() -> None:
         X_train, X_val = features[tr_idx], features[va_idx]
         y_train, y_val = labels[tr_idx], labels[va_idx]
 
-        torch.manual_seed(seed + fold_idx)
-        np.random.seed(seed + fold_idx)
+        torch.manual_seed(model_seed + fold_idx)
+        np.random.seed(model_seed + fold_idx)
 
         train_loader, val_loader = make_loaders(X_train, X_val, y_train, y_val, batch_size)
         model = build_model(cfg, feature_dim, num_classes, use_decoder)

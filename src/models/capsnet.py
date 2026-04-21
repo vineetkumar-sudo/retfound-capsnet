@@ -12,6 +12,8 @@ downstream code (loss, UQ, eval) needs.
 
 from __future__ import annotations
 
+from typing import Callable
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -28,19 +30,53 @@ def squash(s: torch.Tensor, dim: int = -1, eps: float = 1e-8) -> torch.Tensor:
     return (norm2 / (1.0 + norm2)) * (s / norm)
 
 
+def squash_nonuniform(s: torch.Tensor, dim: int = -1, eps: float = 1e-8) -> torch.Tensor:
+    """Gogulamudi et al. 2024 non-uniform squash.
+
+    v = (||s|| / (1 + ||s||)) * (s / ||s||) = s / (1 + ||s||)
+    Saturation is linear in ||s|| rather than quadratic, so short vectors keep
+    more of their direction signal while long vectors remain bounded to (0, 1).
+    """
+    norm = torch.sqrt((s * s).sum(dim=dim, keepdim=True) + eps)
+    return s / (1.0 + norm)
+
+
+_SQUASH_VARIANTS: dict[str, Callable[..., torch.Tensor]] = {
+    "sabour": squash,
+    "nonuniform": squash_nonuniform,
+}
+
+
+def squash_fn(variant: str) -> Callable[..., torch.Tensor]:
+    """Dispatch a squash variant by name. Raises on unknown names — no silent fallback."""
+    if variant not in _SQUASH_VARIANTS:
+        raise ValueError(
+            f"Unknown squash variant {variant!r}. Expected one of {sorted(_SQUASH_VARIANTS)}."
+        )
+    return _SQUASH_VARIANTS[variant]
+
+
 class PrimaryCaps(nn.Module):
     """Projects a flat feature vector into `num_caps` capsules of `caps_dim`."""
 
-    def __init__(self, in_dim: int = 1024, num_caps: int = 32, caps_dim: int = 8):
+    def __init__(
+        self,
+        in_dim: int = 1024,
+        num_caps: int = 32,
+        caps_dim: int = 8,
+        squash_variant: str = "sabour",
+    ):
         super().__init__()
         self.num_caps = num_caps
         self.caps_dim = caps_dim
+        self.squash_variant = squash_variant
+        self._squash = squash_fn(squash_variant)
         self.linear = nn.Linear(in_dim, num_caps * caps_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x: (B, in_dim) -> (B, num_caps, caps_dim)
         u = self.linear(x).view(-1, self.num_caps, self.caps_dim)
-        return squash(u, dim=-1)
+        return self._squash(u, dim=-1)
 
 
 class DigitCaps(nn.Module):
@@ -53,6 +89,7 @@ class DigitCaps(nn.Module):
         num_classes: int = 5,
         caps_dim: int = 16,
         routing_iters: int = 3,
+        squash_variant: str = "sabour",
     ):
         super().__init__()
         self.num_primary = num_primary
@@ -60,6 +97,8 @@ class DigitCaps(nn.Module):
         self.primary_dim = primary_dim
         self.caps_dim = caps_dim
         self.routing_iters = routing_iters
+        self.squash_variant = squash_variant
+        self._squash = squash_fn(squash_variant)
 
         # Transformation tensors W_ij: one per (primary, digit) pair.
         # Shape (1, num_primary, num_classes, caps_dim, primary_dim) for batch broadcast.
@@ -101,7 +140,7 @@ class DigitCaps(nn.Module):
             uh = u_hat if r == self.routing_iters - 1 else u_hat_detached
             # s_j = sum_i c_ij * u_hat_ij : (B, num_classes, caps_dim)
             s = (c.unsqueeze(-1) * uh).sum(dim=1)
-            v = squash(s, dim=-1)
+            v = self._squash(s, dim=-1)
             if r < self.routing_iters - 1:
                 # agreement a_ij = u_hat_ij . v_j  ->  b += a
                 agreement = (uh * v.unsqueeze(1)).sum(dim=-1)
