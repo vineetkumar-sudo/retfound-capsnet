@@ -1,11 +1,16 @@
 """Post-hoc: compute per-sample routing variance for each LoRA fold.
 
-The original Day-10 LoRA training script saved `head_lengths` to
-`preds_fold{N}.npz` but not `routing_variance` (we didn't pass
-`return_routing_history=True` during the eval step). This script loads each
-fold's saved weights, replays the val loader with routing history enabled, and
-writes `routing_variance_fold{N}.npy` alongside the existing preds so that the
-LoRA accuracy-coverage figure can plot all three UQ curves.
+The LoRA training script saves `head_lengths` to `preds_fold{N}.npz` but not
+`routing_variance` (we don't pass `return_routing_history=True` during eval).
+This script loads each fold's saved weights, replays the val loader with
+routing history enabled, and writes `routing_variance_fold{N}.npy` alongside
+the existing preds so that the LoRA accuracy-coverage figure can plot all
+three UQ curves.
+
+Walks every `results/lora_ordinal_capsnet/seed{S}/` subdir (multi-seed
+layout), falling back to the flat top-level layout when no seed subdirs
+exist. Existing `routing_variance_fold{N}.npy` files are left untouched
+(delete them to recompute).
 
 Usage:
     uv run python scripts/compute_lora_routing_variance.py
@@ -78,22 +83,19 @@ def compute_routing_variance_for_fold(model: RetfoundLoraOrdinalCapsNet,
     return np.concatenate(out, axis=0)
 
 
-def main() -> None:
-    device = get_device()
-    print(f"Device: {device}")
-
-    ids_pool, y_pool = load_aptos_split()
-    skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
-    splits = list(skf.split(ids_pool, y_pool))
-
+def compute_for_dir(seed_dir: Path, splits: list, ids_pool, y_pool,
+                    device: torch.device, label: str) -> int:
+    """Walk weights_fold*.pt in seed_dir, write routing_variance_fold*.npy.
+    Returns the number of folds computed this call."""
+    n_done = 0
     for fold_idx, (_, va_idx) in enumerate(splits):
-        weights_path = OUT_DIR / f"weights_fold{fold_idx + 1}.pt"
-        rv_path = OUT_DIR / f"routing_variance_fold{fold_idx + 1}.npy"
+        weights_path = seed_dir / f"weights_fold{fold_idx + 1}.pt"
+        rv_path = seed_dir / f"routing_variance_fold{fold_idx + 1}.npy"
         if not weights_path.exists():
-            print(f"Fold {fold_idx + 1}: {weights_path.name} missing — SKIP")
+            print(f"  {label} fold {fold_idx + 1}: {weights_path.name} missing — SKIP")
             continue
         if rv_path.exists():
-            print(f"Fold {fold_idx + 1}: {rv_path.name} already present — SKIP "
+            print(f"  {label} fold {fold_idx + 1}: {rv_path.name} already present — SKIP "
                   f"(delete to recompute)")
             continue
 
@@ -107,12 +109,7 @@ def main() -> None:
 
         model = RetfoundLoraOrdinalCapsNet().to(device)
         state = torch.load(weights_path, map_location=device, weights_only=True)
-        missing_or_unexpected = model.load_state_dict(state, strict=False)
-        # LoRA + head weights are a strict subset of the full state_dict;
-        # the frozen ViT keys will show as "missing" in the report — that's expected.
-        n_missing_unexpected = (len(missing_or_unexpected.missing_keys)
-                                + len(missing_or_unexpected.unexpected_keys))
-        # Sanity: confirm at least lora + head keys were loaded
+        model.load_state_dict(state, strict=False)
         loaded = set(state.keys())
         assert any("lora_" in k for k in loaded), "No LoRA keys in saved weights!"
         assert any(k.startswith("head.") for k in loaded), "No head keys in saved weights!"
@@ -120,8 +117,29 @@ def main() -> None:
         t0 = time.time()
         rv = compute_routing_variance_for_fold(model, loader, device)
         np.save(rv_path, rv)
-        print(f"Fold {fold_idx + 1}: routing_variance saved ({rv.shape}, "
-              f"mean={rv.mean():.4f})  ({time.time() - t0:.1f}s)")
+        print(f"  {label} fold {fold_idx + 1}: routing_variance saved "
+              f"({rv.shape}, mean={rv.mean():.4f})  ({time.time() - t0:.1f}s)")
+        n_done += 1
+    return n_done
+
+
+def main() -> None:
+    device = get_device()
+    print(f"Device: {device}")
+
+    ids_pool, y_pool = load_aptos_split()
+    skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
+    splits = list(skf.split(ids_pool, y_pool))
+
+    seed_dirs = sorted(OUT_DIR.glob("seed*"))
+    if seed_dirs:
+        print(f"Multi-seed layout: {len(seed_dirs)} seed dir(s)\n")
+        for sd in seed_dirs:
+            print(f"=== {sd} ===")
+            compute_for_dir(sd, splits, ids_pool, y_pool, device, label=sd.name)
+    else:
+        print(f"Single-seed flat layout at {OUT_DIR}\n")
+        compute_for_dir(OUT_DIR, splits, ids_pool, y_pool, device, label="flat")
 
 
 if __name__ == "__main__":
