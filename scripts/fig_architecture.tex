@@ -106,29 +106,35 @@
 \node[tag, right=1mm of vit, yshift=-6mm] {\scriptsize CLS $(B, 1024)$};
 \node[tag, right=1mm of pc,  yshift=-4mm] {\scriptsize $(B, 32, 8)$};
 
-% ---- Legend (placed below the whole diagram, full width) -------------------
-\node[draw=black!30, rounded corners=2pt, inner sep=3pt,
-      below=6mm of pred.south west, anchor=north west,
-      fit={(pred.south west) ([xshift=-6mm]uq.south east)}] (legendbox) {};
-\node[anchor=west, font=\scriptsize, inner sep=0pt] (leg-label)
-      at ([xshift=2mm]legendbox.west |- legendbox) {\textbf{Legend}};
+% ---- Legend (placed below the whole diagram; bounding box auto-sized) ------
+% We place each legend item first, then draw the bounding rectangle on the
+% background layer with fit= over all items. This guarantees the grey border
+% wraps every swatch + label exactly, rather than being clipped on the right.
+\coordinate (legAnchor) at ([yshift=-6mm]pred.south west);
 
-% Build the three legend items horizontally, left to right.
+\node[anchor=west, font=\scriptsize, inner sep=1pt] (leg-label)
+      at ([xshift=2mm]legAnchor) {\textbf{Legend}};
+
 \node[box, fill=colFrozen, draw=colFrozenEdge, dashed,
       minimum width=5mm, minimum height=3.2mm, inner sep=0pt,
       right=3mm of leg-label.east, anchor=west] (sw1) {};
-\node[anchor=west, font=\scriptsize, inner sep=1pt]
+\node[anchor=west, font=\scriptsize, inner sep=1pt] (sw1lbl)
       at ([xshift=0.8mm]sw1.east) {frozen};
 
 \node[box, fill=colTrainable, draw=colTrainableEdge,
       minimum width=5mm, minimum height=3.2mm, inner sep=0pt,
-      right=14mm of sw1.east, anchor=west] (sw2) {};
-\node[anchor=west, font=\scriptsize, inner sep=1pt]
+      right=6mm of sw1lbl.east, anchor=west] (sw2) {};
+\node[anchor=west, font=\scriptsize, inner sep=1pt] (sw2lbl)
       at ([xshift=0.8mm]sw2.east) {trainable capsule head (295 K)};
 
-\node[lora, minimum size=3.2mm, right=34mm of sw2.east, anchor=west] (sw3) {L};
-\node[anchor=west, font=\scriptsize, inner sep=1pt, text=colLoRA!80!black]
+\node[lora, minimum size=3.2mm, right=6mm of sw2lbl.east, anchor=west] (sw3) {L};
+\node[anchor=west, font=\scriptsize, inner sep=1pt, text=colLoRA!80!black] (sw3lbl)
       at ([xshift=0.8mm]sw3.east) {LoRA rank-8 adapter (optional, 786 K)};
+
+\begin{scope}[on background layer]
+\node[draw=black!30, rounded corners=2pt, inner sep=3pt,
+      fit=(leg-label) (sw1) (sw1lbl) (sw2) (sw2lbl) (sw3) (sw3lbl)] {};
+\end{scope}
 
 \end{tikzpicture}
 \end{document}

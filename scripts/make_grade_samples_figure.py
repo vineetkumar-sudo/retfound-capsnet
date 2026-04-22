@@ -34,12 +34,15 @@ OUT_DIR = Path("results/figures")
 OUT_STEM = "fig_0_grade_samples"
 
 # Short ICDR-severity-scale descriptions — drop into the paper caption verbatim.
+# Explicit newlines keep each line inside its panel; matplotlib's wrap=True is
+# unreliable with transform=ax.transAxes, which caused adjacent descriptors to
+# collide in earlier drafts.
 GRADE_INFO = [
-    ("0", "No DR",             "No visible microvascular lesions"),
+    ("0", "No DR",             "No visible\nmicrovascular lesions"),
     ("1", "Mild NPDR",         "Microaneurysms only"),
-    ("2", "Moderate NPDR",     "MAs + haemorrhages, hard exudates, or cotton-wool spots"),
-    ("3", "Severe NPDR",       "Extensive haemorrhages / IRMA / venous beading"),
-    ("4", "Proliferative DR",  "Neovascularisation or vitreous/pre-retinal haemorrhage"),
+    ("2", "Moderate NPDR",     "MAs, haemorrhages,\nhard exudates,\nor cotton-wool spots"),
+    ("3", "Severe NPDR",       "Extensive haemorrhages,\nIRMA, or venous beading"),
+    ("4", "Proliferative DR",  "Neovascularisation or\nvitreous/pre-retinal\nhaemorrhage"),
 ]
 
 # Seed used here ONLY to pick a prototype image per grade — does not touch
@@ -123,7 +126,7 @@ def main() -> None:
                           facecolor="black", alpha=0.35,
                           edgecolor="none"))
     fig.tight_layout()
-    fig.subplots_adjust(bottom=0.20)
+    fig.subplots_adjust(bottom=0.28)
     fig.savefig(OUT_DIR / f"{OUT_STEM}.png", dpi=300)
     fig.savefig(OUT_DIR / f"{OUT_STEM}.pdf")
     plt.close(fig)
