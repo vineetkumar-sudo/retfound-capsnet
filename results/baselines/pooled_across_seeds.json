@@ -1,0 +1,85 @@
+{
+  "model_seeds": [
+    42,
+    123,
+    456
+  ],
+  "data_seed": 42,
+  "pooled": {
+    "Linear Probe + CE": {
+      "qwk_mean_across_seeds": 0.8389260976814904,
+      "qwk_std_across_seeds": 0.012185011907177806,
+      "accuracy_mean_across_seeds": 0.7970662620131512,
+      "accuracy_std_across_seeds": 0.0037851870377076137,
+      "macro_f1_mean_across_seeds": 0.6011151349234761,
+      "macro_f1_std_across_seeds": 0.014424479588234987,
+      "mae_mean_across_seeds": 0.2912493677288821,
+      "mae_std_across_seeds": 0.010656302747406109,
+      "per_seed_qwk": [
+        0.8428724946577753,
+        0.8514798133855045,
+        0.8224259850011917
+      ]
+    },
+    "MLP + CE": {
+      "qwk_mean_across_seeds": 0.8782542452366354,
+      "qwk_std_across_seeds": 0.002193959507491395,
+      "accuracy_mean_across_seeds": 0.8056651492159839,
+      "accuracy_std_across_seeds": 0.001222361757571499,
+      "macro_f1_mean_across_seeds": 0.6271189054534384,
+      "macro_f1_std_across_seeds": 0.00210404879104611,
+      "mae_mean_across_seeds": 0.25897824987354573,
+      "mae_std_across_seeds": 0.001364768595167649,
+      "per_seed_qwk": [
+        0.8752372726208192,
+        0.8791353603168564,
+        0.8803901027722304
+      ]
+    },
+    "MLP + MSE (Ordinal)": {
+      "qwk_mean_across_seeds": 0.8831494028546331,
+      "qwk_std_across_seeds": 0.0010640969165125853,
+      "accuracy_mean_across_seeds": 0.7444613050075871,
+      "accuracy_std_across_seeds": 0.0016249244718471996,
+      "macro_f1_mean_across_seeds": 0.5491381697973979,
+      "macro_f1_std_across_seeds": 0.006908887857855949,
+      "mae_mean_across_seeds": 0.29357612544258976,
+      "mae_std_across_seeds": 0.001826552360674536,
+      "per_seed_qwk": [
+        0.8818079362270635,
+        0.8844107323391939,
+        0.8832295399976419
+      ]
+    },
+    "Linear Probe + Weighted CE": {
+      "qwk_mean_across_seeds": 0.8479056590027939,
+      "qwk_std_across_seeds": 0.003150393017413631,
+      "accuracy_mean_across_seeds": 0.7747091552857865,
+      "accuracy_std_across_seeds": 0.004126672342816666,
+      "macro_f1_mean_across_seeds": 0.6291492558424353,
+      "macro_f1_std_across_seeds": 0.0056919310507074885,
+      "mae_mean_across_seeds": 0.31077389984825493,
+      "mae_std_across_seeds": 0.006254155393454208,
+      "per_seed_qwk": [
+        0.8513936882969594,
+        0.8485622074101915,
+        0.843761081301231
+      ]
+    },
+    "MLP + Weighted CE": {
+      "qwk_mean_across_seeds": 0.8607145505940919,
+      "qwk_std_across_seeds": 0.001438340192684849,
+      "accuracy_mean_across_seeds": 0.7679312089023774,
+      "accuracy_std_across_seeds": 0.0022209912392615314,
+      "macro_f1_mean_across_seeds": 0.6156358927649385,
+      "macro_f1_std_across_seeds": 0.004625597262234128,
+      "mae_mean_across_seeds": 0.3074355083459787,
+      "mae_std_across_seeds": 0.002160258624589059,
+      "per_seed_qwk": [
+        0.862509263965023,
+        0.8606463420871744,
+        0.8589880457300781
+      ]
+    }
+  }
+}

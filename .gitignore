@@ -1,13 +1,40 @@
-/data/
-/results/
-/experiments/
-/paper/
+# Heavy model artifacts — always ignore (per-file, not per-dir)
 *.ckpt
 *.pt
 *.pth
 *.npy
+*.npz
+
+# Raw dataset + experimental sandboxes — too heavy for git.
+# Paper drafts and working docs stay local; only scripts/fig_architecture.tex is tracked.
+/data/
+/experiments/
+/paper/
+wandb/
+
+# Local tooling state
+.claude/
+.claude.local.md
+.venv/
+
+# OS / Python
 __pycache__/
 .DS_Store
-.venv/
-wandb/
-.claude.local.md
+
+# Stray / ephemeral one-offs
+tea_debug.log
+test.synctex.gz
+
+# LaTeX build artifacts (when compiling outside scripts/make_architecture_diagram.py)
+*.aux
+*.fdb_latexmk
+*.fls
+*.out
+*.synctex.gz
+
+# Note on results/:
+#   The blanket `/results/` rule was removed so that lightweight artifacts
+#   (markdown tables, CSVs, json summaries, png/pdf figures, logs) land in
+#   version control — gives us a paper-history fallback if something is lost.
+#   The heavy artifacts (*.pt, *.npz, *.npy) are already excluded via the
+#   extension rules above, so large files stay local.

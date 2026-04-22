@@ -1,0 +1,21 @@
+Device: mps
+Multi-seed layout: 3 seed dir(s)
+
+=== results/lora_ordinal_capsnet/seed123 ===
+  seed123 fold 1: routing_variance saved ((659,), mean=0.0349)  (34.7s)
+  seed123 fold 2: routing_variance saved ((659,), mean=0.0337)  (35.0s)
+  seed123 fold 3: routing_variance saved ((659,), mean=0.0341)  (34.5s)
+  seed123 fold 4: routing_variance saved ((659,), mean=0.0342)  (35.3s)
+  seed123 fold 5: routing_variance saved ((659,), mean=0.0350)  (35.7s)
+=== results/lora_ordinal_capsnet/seed42 ===
+  seed42 fold 1: routing_variance saved ((659,), mean=0.0344)  (34.8s)
+  seed42 fold 2: routing_variance saved ((659,), mean=0.0331)  (35.0s)
+  seed42 fold 3: routing_variance saved ((659,), mean=0.0334)  (42.5s)
+  seed42 fold 4: routing_variance saved ((659,), mean=0.0324)  (41.8s)
+  seed42 fold 5: routing_variance saved ((659,), mean=0.0330)  (40.8s)
+=== results/lora_ordinal_capsnet/seed456 ===
+  seed456 fold 1: routing_variance saved ((659,), mean=0.0365)  (39.0s)
+  seed456 fold 2: routing_variance saved ((659,), mean=0.0343)  (37.1s)
+  seed456 fold 3: routing_variance saved ((659,), mean=0.0338)  (36.0s)
+  seed456 fold 4: routing_variance saved ((659,), mean=0.0343)  (35.6s)
+  seed456 fold 5: routing_variance saved ((659,), mean=0.0325)  (35.3s)

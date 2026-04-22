@@ -1,0 +1,6 @@
+Grade,Vanilla_%,Ordinal_%,LoRA_%,Delta_pp,Note
+0 (No DR),97.6,95.9,97.7,+0.2  (Vanilla→LoRA),Stable
+1 (Mild),48.2,43.3,49.3,+1.1  (Vanilla→LoRA),Improvement
+2 (Moderate),81.3,78.6,81.9,+0.6  (Vanilla→LoRA),Stable
+3 (Severe),31.0,46.7,39.1,+8.0  (Vanilla→LoRA),Major improvement
+4 (PDR),47.7,46.7,59.6,+11.9  (Vanilla→LoRA),Major improvement

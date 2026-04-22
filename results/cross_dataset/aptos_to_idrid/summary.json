@@ -1,0 +1,63 @@
+{
+  "protocol": "Train on APTOS 5-fold CV pool (ex-10% holdout); evaluate ensemble on IDRiD test.",
+  "source": "aptos_train",
+  "target": "idrid_test",
+  "n_train": 3295,
+  "n_test": 103,
+  "seed": 42,
+  "epochs": 100,
+  "patience": 30,
+  "per_fold_test_qwk": [
+    0.2602011103777614,
+    0.28494049435459257,
+    0.22717113665389532,
+    0.27565687789799076,
+    0.2548424737456242
+  ],
+  "per_fold_test_qwk_mean": 0.26056241860597285,
+  "per_fold_test_qwk_std": 0.019849228205490347,
+  "ensemble_test": {
+    "qwk": 0.2730356794696821,
+    "accuracy": 0.34951456310679613,
+    "macro_f1": 0.2311590038314176,
+    "mae": 1.0194174757281553,
+    "confusion_matrix": [
+      [
+        2,
+        2,
+        30,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        5,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        27,
+        5,
+        0
+      ],
+      [
+        0,
+        0,
+        14,
+        5,
+        0
+      ],
+      [
+        0,
+        0,
+        8,
+        3,
+        2
+      ]
+    ]
+  },
+  "elapsed_sec": 108.0671398639679
+}

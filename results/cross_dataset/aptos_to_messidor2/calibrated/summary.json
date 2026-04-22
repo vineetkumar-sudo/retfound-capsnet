@@ -1,0 +1,91 @@
+{
+  "source": {
+    "cross_dir": "results/cross_dataset/aptos_to_messidor2/ordinal_capsnet",
+    "n_samples": 1744,
+    "method": "Ordinal CapsNet (frozen RETFound)",
+    "severity_score": "sum_k P(y > k) from chain-rule head_probs (fold-averaged)"
+  },
+  "priors": {
+    "aptos_train_5class": [
+      0.4929,
+      0.101038,
+      0.272802,
+      0.052703,
+      0.080557
+    ],
+    "messidor2_gt_5class": [
+      0.583142,
+      0.154817,
+      0.198968,
+      0.043005,
+      0.020069
+    ],
+    "aptos_referable_rate": 0.406062,
+    "messidor2_gt_referable_rate": 0.262041
+  },
+  "predicted_marginal_uncalibrated": [
+    0.997133,
+    0.001147,
+    0.000573,
+    0.001147,
+    0.0
+  ],
+  "five_class": {
+    "uncalibrated": {
+      "qwk": 0.014046367001352311,
+      "accuracy": 0.5825688073394495,
+      "macro_f1": 0.1474600870827286,
+      "mae": 0.7586009174311926
+    },
+    "aptos_prior_calibrated": {
+      "qwk": 0.221625973851303,
+      "accuracy": 0.4019495412844037,
+      "macro_f1": 0.2495292115434728,
+      "mae": 1.0579128440366972
+    },
+    "oracle_calibrated": {
+      "qwk": 0.26818130668578544,
+      "accuracy": 0.45642201834862384,
+      "macro_f1": 0.30813023070542644,
+      "mae": 0.856651376146789
+    }
+  },
+  "binary": {
+    "uncalibrated_thr_0_5": {
+      "threshold": 0.5,
+      "sensitivity": 0.17943107221006566,
+      "specificity": 0.9494949494949495,
+      "auc": 0.6246695196366969,
+      "f1": 0.2715231788079471,
+      "accuracy": 0.7477064220183486,
+      "tp": 82,
+      "fp": 65,
+      "tn": 1222,
+      "fn": 375
+    },
+    "aptos_prior_calibrated": {
+      "threshold": 0.2614942450119067,
+      "sensitivity": 0.5185995623632386,
+      "specificity": 0.634032634032634,
+      "auc": 0.6246695196366969,
+      "f1": 0.4068669527896996,
+      "accuracy": 0.6037844036697247,
+      "tp": 237,
+      "fp": 471,
+      "tn": 816,
+      "fn": 220
+    },
+    "oracle_calibrated": {
+      "threshold": 0.3221984205237769,
+      "sensitivity": 0.387308533916849,
+      "specificity": 0.7824397824397824,
+      "auc": 0.6246695196366969,
+      "f1": 0.387308533916849,
+      "accuracy": 0.6788990825688074,
+      "tp": 177,
+      "fp": 280,
+      "tn": 1007,
+      "fn": 280
+    }
+  }
+}

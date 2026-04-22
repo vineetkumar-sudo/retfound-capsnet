@@ -1,0 +1,58 @@
+{
+  "model": "asym-ordinal-A_baseline",
+  "model_seed": 456,
+  "loss": {
+    "m_plus": 0.95,
+    "m_minus": 0.05,
+    "lambda_base": 0.5,
+    "lambda_under": 1.0,
+    "lambda_over": 1.0,
+    "use_niu": false,
+    "per_head_weights": null
+  },
+  "result": {
+    "qwk_mean": 0.893612015215677,
+    "qwk_std": 0.0091453318418014,
+    "accuracy_mean": 0.790288315629742,
+    "accuracy_std": 0.008920751718785465,
+    "macro_f1_mean": 0.6202828506190228,
+    "macro_f1_std": 0.017937693979554317,
+    "non_monotonic_rate_mean": 0.0024279210925644916,
+    "asym_ratio_mean": 0.6278725547280437,
+    "per_head_acc_mean": [
+      0.9714719271623672,
+      0.9210925644916539,
+      0.9132018209408195,
+      0.9371775417298938
+    ],
+    "per_head_acc_std": [
+      0.003513152322546347,
+      0.006069802731411222,
+      0.00822228660646073,
+      0.0064807758737671015
+    ],
+    "per_grade_acc_mean": [
+      0.9679810066476733,
+      0.40578923563998187,
+      0.7642271880819367,
+      0.4541176470588235,
+      0.49433962264150944
+    ],
+    "per_grade_acc_std": [
+      0.0024523176221888355,
+      0.0712752284527716,
+      0.02836455045674299,
+      0.022733228126266786,
+      0.06246394474432771
+    ],
+    "train_val_qwk_gap_mean": 0.03674740956981275,
+    "holdout_qwk_mean": 0.8850109553604819,
+    "holdout_qwk_std": 0.005845158658988231,
+    "holdout_accuracy_mean": 0.7836512261580382,
+    "holdout_accuracy_std": 0.007021307208024588,
+    "holdout_macro_f1_mean": 0.592705987777945,
+    "holdout_macro_f1_std": 0.019587145768633008,
+    "holdout_non_monotonic_rate_mean": 0.004359673024523161,
+    "holdout_asym_ratio_mean": 0.6536799154991502
+  }
+}
