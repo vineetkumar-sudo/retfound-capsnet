@@ -35,7 +35,7 @@ from src.uncertainty import digit_cap_entropy, prediction_margin
 
 CLASS_NAMES = ["No DR", "Mild", "Moderate", "Severe", "PDR"]
 LORA_DIR = Path("results/lora_ordinal_capsnet")
-FROZEN_DIR = Path("results/ordinal_capsnet/seed42")  # Day 6 seed-42 frozen Ordinal preds
+FROZEN_DIR = Path("results/ordinal_capsnet")  # Day 6 frozen Ordinal preds (pools seed*/ via _pool)
 FIGDIR = Path("results/figures")
 FIGDIR.mkdir(parents=True, exist_ok=True)
 
@@ -57,7 +57,16 @@ def save_both(fig: plt.Figure, stem: str) -> None:
 
 
 def _pool(dir_: Path, keys: tuple[str, ...]) -> dict:
-    files = sorted(dir_.glob("preds_fold*.npz"))
+    """Pool per-fold npz arrays. Walks `seed*/` subdirs when present
+    (multi-seed layout) and falls back to flat `dir_/preds_fold*.npz` otherwise.
+    """
+    seed_dirs = sorted(dir_.glob("seed*"))
+    if seed_dirs:
+        files: list[Path] = []
+        for sd in seed_dirs:
+            files.extend(sorted(sd.glob("preds_fold*.npz")))
+    else:
+        files = sorted(dir_.glob("preds_fold*.npz"))
     if not files:
         raise FileNotFoundError(f"No preds_fold*.npz in {dir_}")
     out: dict[str, list[np.ndarray]] = {k: [] for k in keys}
@@ -70,8 +79,19 @@ def _pool(dir_: Path, keys: tuple[str, ...]) -> dict:
 
 
 def _pool_lora_routing_variance() -> np.ndarray | None:
-    """Stitch per-fold routing_variance_fold{N}.npy in fold order (matches preds concat)."""
-    files = sorted(LORA_DIR.glob("routing_variance_fold*.npy"))
+    """Stitch per-fold routing_variance_fold{N}.npy.
+
+    Multi-seed layout: concatenate across every `seed*/routing_variance_fold*.npy`
+    in seed-then-fold order — matches the `_pool` ordering of preds_fold*.npz.
+    Flat layout: concatenate `LORA_DIR/routing_variance_fold*.npy` as before.
+    """
+    seed_dirs = sorted(LORA_DIR.glob("seed*"))
+    if seed_dirs:
+        files: list[Path] = []
+        for sd in seed_dirs:
+            files.extend(sorted(sd.glob("routing_variance_fold*.npy")))
+    else:
+        files = sorted(LORA_DIR.glob("routing_variance_fold*.npy"))
     if not files:
         return None
     arrs = [np.load(f) for f in files]
