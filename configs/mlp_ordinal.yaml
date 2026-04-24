@@ -1,0 +1,50 @@
+# Day 12 — MLP + K-1 sigmoid ordinal head on cached RETFound features.
+# Direct no-capsule comparator to OrdinalCapsNet. Same K-1 decomposition,
+# same loss, same training loop; the *only* methodological difference is
+# swapping the capsule + routing machinery for an MLP trunk + per-head
+# sigmoid. Run via `scripts/run_ordinal_capsnet.py --config
+# configs/mlp_ordinal.yaml --seeds 42,123,456`.
+
+data:
+  features_path: data/aptos/features/train_features.npy
+  labels_path: data/aptos/features/train_labels.npy
+  seed: 42
+  num_classes: 5
+  feature_dim: 1024
+  n_folds: 5
+  holdout_split: 0.10
+
+training:
+  early_stopping_patience: 30
+  batch_size: 64
+  lr: 0.001
+  epochs: 100
+  weight_decay: 0.0001
+
+model:
+  arch: mlp                     # dispatches to src.models.mlp_ordinal.MLPOrdinal
+  hidden_dim: 256
+  num_hidden_layers: 2
+  dropout: 0.1
+  # The fields below are unused by MLPOrdinal but kept so the same config
+  # schema is accepted by build_model; any kwargs the class doesn't use are
+  # silently ignored in the MLPOrdinal constructor.
+  num_primary: 32
+  primary_dim: 8
+  caps_dim: 16
+  routing_iters: 3
+
+output:
+  plots_dir: results/mlp_ordinal
+
+wandb:
+  project: retfound-capsnet-final
+  group: day12-mlp-ordinal
+  name: mlp-ordinal-k1-sigmoid
+  enabled: true
+
+demo:
+  n_samples: 500
+  n_folds: 1
+  epochs: 30
+  wandb: false

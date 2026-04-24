@@ -12,5 +12,6 @@
 | 8 | + KC Loss (gamma=0.3) | 0.8914 ± 0.0006 | 0.7819 ± 0.0025 | 0.6130 ± 0.0028 | 0.264 ± 0.003 | 3 seeds x 5-fold |
 | 9 | Ordinal CapsNet + LoRA | **0.9127 ± 0.0008** | **0.8237 ± 0.0068** | **0.6627 ± 0.0105** | **0.214 ± 0.006** | 3 seeds x 5-fold, LoRA r=8 |
 | 10 | + Non-uniform squash | 0.8894 ± 0.0006 | 0.7857 ± 0.0059 | 0.6097 ± 0.0095 | 0.264 ± 0.004 | 3 seeds x 5-fold |
+| 11 | MLP + K-1 sigmoid | 0.8866 ± 0.0004 | 0.7963 ± 0.0041 | 0.6250 ± 0.0048 | 0.257 ± 0.003 | 3 seeds x 5-fold |
 
 Best value per column in **bold**. QWK / Accuracy / Macro F1: higher is better; MAE: lower is better.

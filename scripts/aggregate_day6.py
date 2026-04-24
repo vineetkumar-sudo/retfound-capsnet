@@ -38,6 +38,7 @@ ROW_SPECS = [
     ("+ KC Loss (gamma=0.3)",  "ordinal_kc_loss",     "ordinal",       ("results/ordinal_kc/kc_gamma_0p30",),      "3 seeds x 5-fold"),
     ("Ordinal CapsNet + LoRA", "ordinal_lora",        "lora",          ("results/lora_ordinal_capsnet",),          "3 seeds x 5-fold, LoRA r=8"),
     ("+ Non-uniform squash",   "ordinal_nonuniform_squash", "ordinal",  ("results/ordinal_capsnet_nonuniform",),    "3 seeds x 5-fold"),
+    ("MLP + K-1 sigmoid",      "mlp_k1_sigmoid",      "ordinal",       ("results/mlp_ordinal",),                   "3 seeds x 5-fold"),
 ]
 
 BASELINES_DIR = Path("results/baselines")

@@ -37,6 +37,7 @@ from src.losses.ordinal_loss import (
     ordinal_labels,
     predict_grade_from_heads,
 )
+from src.models.mlp_ordinal import MLPOrdinal
 from src.models.ordinal_capsnet import OrdinalCapsNet
 
 
@@ -329,18 +330,31 @@ def parse_seeds(arg: str | None, default_seed: int) -> list[int]:
     return [int(s) for s in arg.split(",") if s.strip()]
 
 
-def build_model(cfg: dict, feature_dim: int, num_classes: int) -> OrdinalCapsNet:
+def build_model(cfg: dict, feature_dim: int, num_classes: int):
+    """Dispatch on cfg.model.arch. Default is capsnet (backwards-compatible);
+    set arch: mlp in the config to get the K-1 sigmoid MLP comparator."""
     mc = cfg["model"]
-    return OrdinalCapsNet(
-        feature_dim=feature_dim,
-        num_primary=mc["num_primary"],
-        primary_dim=mc["primary_dim"],
-        num_classes=num_classes,
-        caps_dim=mc["caps_dim"],
-        routing_iters=mc["routing_iters"],
-        dropout=mc.get("dropout", 0.0),
-        squash_variant=mc.get("squash_variant", "sabour"),
-    )
+    arch = mc.get("arch", "capsnet")
+    if arch == "capsnet":
+        return OrdinalCapsNet(
+            feature_dim=feature_dim,
+            num_primary=mc["num_primary"],
+            primary_dim=mc["primary_dim"],
+            num_classes=num_classes,
+            caps_dim=mc["caps_dim"],
+            routing_iters=mc["routing_iters"],
+            dropout=mc.get("dropout", 0.0),
+            squash_variant=mc.get("squash_variant", "sabour"),
+        )
+    if arch == "mlp":
+        return MLPOrdinal(
+            feature_dim=feature_dim,
+            hidden_dim=mc.get("hidden_dim", 256),
+            num_classes=num_classes,
+            num_hidden_layers=mc.get("num_hidden_layers", 2),
+            dropout=mc.get("dropout", 0.0),
+        )
+    raise ValueError(f"Unknown model.arch='{arch}'; expected 'capsnet' or 'mlp'.")
 
 
 def run_one_seed(
