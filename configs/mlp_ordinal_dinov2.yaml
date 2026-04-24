@@ -1,0 +1,44 @@
+# Day-12 backbone ablation: MLP + K-1 sigmoid on DINOv2 ViT-L/14 features.
+# Matches configs/mlp_ordinal.yaml except for the feature cache path, giving
+# us the fourth cell of the head x backbone 2x2 grid (MLP-K1 x DINOv2).
+
+data:
+  features_path: data/aptos/features_dinov2/train_features.npy
+  labels_path: data/aptos/features_dinov2/train_labels.npy
+  seed: 42
+  num_classes: 5
+  feature_dim: 1024
+  n_folds: 5
+  holdout_split: 0.10
+
+training:
+  early_stopping_patience: 30
+  batch_size: 64
+  lr: 0.001
+  epochs: 100
+  weight_decay: 0.0001
+
+model:
+  arch: mlp
+  hidden_dim: 256
+  num_hidden_layers: 2
+  dropout: 0.1
+  num_primary: 32
+  primary_dim: 8
+  caps_dim: 16
+  routing_iters: 3
+
+output:
+  plots_dir: results/mlp_ordinal_dinov2
+
+wandb:
+  project: retfound-capsnet-final
+  group: day12-dinov2-backbone
+  name: dinov2-mlp-k1-sigmoid
+  enabled: true
+
+demo:
+  n_samples: 500
+  n_folds: 1
+  epochs: 30
+  wandb: false

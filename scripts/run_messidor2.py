@@ -38,6 +38,7 @@ from src.losses.margin_loss import MarginLoss
 from src.losses.ordinal_loss import OrdinalMarginLoss, predict_grade_from_heads
 from src.models.baselines import MLPClassifier, MLPRegressor
 from src.models.capsnet import CapsNet
+from src.models.mlp_ordinal import MLPOrdinal
 from src.models.ordinal_capsnet import OrdinalCapsNet
 
 
@@ -83,6 +84,11 @@ def build_model(model_id: str) -> nn.Module:
         return OrdinalCapsNet(feature_dim=FEATURE_DIM, num_classes=NUM_CLASSES,
                               num_primary=32, primary_dim=8, caps_dim=16, routing_iters=3,
                               dropout=0.1)
+    if model_id == "mlp_k1_sigmoid":
+        # No-capsule comparator: same K-1 ordinal head-lengths schema so the
+        # ordinal paths in predict()/train_one_fold() pick this up unchanged.
+        return MLPOrdinal(feature_dim=FEATURE_DIM, hidden_dim=256,
+                          num_classes=NUM_CLASSES, num_hidden_layers=2, dropout=0.1)
     raise ValueError(f"Unknown model: {model_id}")
 
 
@@ -96,7 +102,7 @@ def predict(model_id: str, model: nn.Module, loader: DataLoader,
     rv_chunks: list[np.ndarray] = []
     for X, y in loader:
         X = X.to(device)
-        if model_id == "ordinal_capsnet":
+        if model_id in ("ordinal_capsnet", "mlp_k1_sigmoid"):
             out = model(X, return_routing_history=True)
             L = out["head_lengths"]
             rh = out["routing_history"]
@@ -141,7 +147,7 @@ def train_one_fold(model_id: str, model: nn.Module,
         loss_fn = nn.MSELoss()
     elif model_id == "capsnet_vanilla":
         loss_fn = MarginLoss(num_classes=NUM_CLASSES)
-    elif model_id == "ordinal_capsnet":
+    elif model_id in ("ordinal_capsnet", "mlp_k1_sigmoid"):
         loss_fn = OrdinalMarginLoss(num_classes=NUM_CLASSES)
     else:
         raise ValueError(model_id)
@@ -156,7 +162,7 @@ def train_one_fold(model_id: str, model: nn.Module,
                 loss = loss_fn(model(X), y.float())
             elif model_id == "capsnet_vanilla":
                 loss = loss_fn(model(X, labels=y)["lengths"], y)
-            elif model_id == "ordinal_capsnet":
+            elif model_id in ("ordinal_capsnet", "mlp_k1_sigmoid"):
                 loss = loss_fn(model(X)["head_lengths"], y)
             else:
                 loss = loss_fn(model(X), y)
@@ -242,24 +248,34 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--models", nargs="+",
                    default=["mlp_ce", "mlp_mse", "capsnet_vanilla", "ordinal_capsnet"])
+    p.add_argument("--features-dir", default=None,
+                   help="Override feature cache directory (default data/messidor2/features). "
+                        "Use data/messidor2/features_dinov2 for the DINOv2 backbone ablation.")
+    p.add_argument("--output-dir", default=None,
+                   help="Override output directory (default results/messidor2). "
+                        "Use results/messidor2_dinov2 for the DINOv2 backbone ablation.")
     return p.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     device = get_device()
+    features_dir = Path(args.features_dir) if args.features_dir else FEATURES_DIR
+    out_root = Path(args.output_dir) if args.output_dir else RESULTS_ROOT
     print(f"Device: {device}")
+    print(f"Features: {features_dir}")
+    print(f"Output:   {out_root}")
     print(f"Models: {args.models}\n")
 
-    X = np.load(FEATURES_DIR / "features.npy")
-    y = np.load(FEATURES_DIR / "grades.npy")
+    X = np.load(features_dir / "features.npy")
+    y = np.load(features_dir / "grades.npy")
     print(f"Messidor-2 (5-class): {X.shape}  label dist={np.bincount(y).tolist()}\n")
 
-    RESULTS_ROOT.mkdir(parents=True, exist_ok=True)
+    out_root.mkdir(parents=True, exist_ok=True)
     summaries = {}
     for m in args.models:
         print(f"\n=== {m} ===")
-        summaries[m] = run_model(m, X, y, device, RESULTS_ROOT / m)
+        summaries[m] = run_model(m, X, y, device, out_root / m)
 
     # Console recap
     print("\n" + "=" * 80)

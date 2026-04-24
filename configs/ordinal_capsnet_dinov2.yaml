@@ -1,0 +1,42 @@
+# Day-12 backbone ablation: Ordinal CapsNet on DINOv2 ViT-L/14 features.
+# Everything except the feature cache path matches configs/ordinal_capsnet.yaml
+# so the head, loss, protocol, and seeds are identical to the RETFound row --
+# the only variable is the backbone.
+
+data:
+  features_path: data/aptos/features_dinov2/train_features.npy
+  labels_path: data/aptos/features_dinov2/train_labels.npy
+  seed: 42
+  num_classes: 5
+  feature_dim: 1024
+  n_folds: 5
+  holdout_split: 0.10
+
+training:
+  early_stopping_patience: 30
+  batch_size: 64
+  lr: 0.001
+  epochs: 100
+  weight_decay: 0.0001
+
+model:
+  num_primary: 32
+  primary_dim: 8
+  caps_dim: 16
+  routing_iters: 3
+  dropout: 0.1
+
+output:
+  plots_dir: results/ordinal_capsnet_dinov2
+
+wandb:
+  project: retfound-capsnet-final
+  group: day12-dinov2-backbone
+  name: dinov2-ordinal-capsnet
+  enabled: true
+
+demo:
+  n_samples: 500
+  n_folds: 1
+  epochs: 30
+  wandb: false

@@ -1,0 +1,20 @@
+Generating plots -> results/ordinal_capsnet_dinov2/seed456/
+
+Done. Multi-seed pooled summary -> results/ordinal_capsnet_dinov2/summary_multiseed.json
+=== 1/4 DONE ===
+Generating plots -> results/mlp_ordinal_dinov2/seed456/
+
+Done. Multi-seed pooled summary -> results/mlp_ordinal_dinov2/summary_multiseed.json
+=== 2/4 DONE ===
+  -> ordinal_capsnet DONE  val QWK 0.7525 ± 0.0222  (47.8s total)
+
+================================================================================
+Model                 Val QWK               Val Acc               Val MAE   
+ordinal_capsnet       0.7525 ± 0.0222    0.6582 ± 0.0271    0.402
+=== 3/4 DONE ===
+  -> mlp_k1_sigmoid DONE  val QWK 0.7643 ± 0.0148  (34.8s total)
+
+================================================================================
+Model                 Val QWK               Val Acc               Val MAE   
+mlp_k1_sigmoid        0.7643 ± 0.0148    0.7099 ± 0.0101    0.357
+=== 4/4 DONE ===
