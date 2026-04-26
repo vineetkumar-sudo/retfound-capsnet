@@ -1,0 +1,563 @@
+%% Rewritten draft: the paper's thesis is now backbone + UQ rather than
+%% capsules-as-hero. Negatives moved to the appendix.
+
+\documentclass[journal]{IEEEtran}
+
+\usepackage{cite}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage[hidelinks]{hyperref}
+
+\hyphenation{op-tical net-works semi-conduc-tor}
+
+\begin{document}
+
+\title{Frozen Foundation Features for Ordinal\\
+    Diabetic Retinopathy Grading:\\
+    A Head\,$\times$\,Backbone Analysis with\\
+    Calibrated Conformal Uncertainty}
+
+\author{Vineet Kumar%
+    \thanks{Vineet Kumar is with the Deep Learning Research Group.
+        Contact: vineet.kumar@polymathai.co. Draft, April 2026.}}
+
+\markboth{Manuscript Draft --- April 2026}%
+{Kumar: Frozen Foundation Features for Ordinal DR Grading}
+
+\maketitle
+
+\begin{abstract}
+    Automated diabetic retinopathy (DR) grading needs both accuracy and trustworthy uncertainty, but it is unclear which design choices actually drive either. The three candidates are the pretrained backbone, the prediction head on top, and the uncertainty layer wrapped around it. We run a fully-crossed ablation that varies all three on APTOS-2019 and Messidor-2, comparing a domain-specific backbone (RETFound-MAE) against a generalist one (DINOv2), a capsule-network head against a plain MLP with $K{-}1$ ordinal sigmoid thresholds, and capsule-native confidence against temperature scaling and split conformal prediction. Features are extracted once and frozen, so only the head trains, on consumer hardware, with three seeds and five-fold cross-validation. The backbone is the dominant lever. Swapping RETFound-MAE for DINOv2 lifts QWK by an order of magnitude more than swapping the head, while capsule routing adds little over the much simpler MLP+$K{-}1$ baseline and produces an over-confident confidence signal that a single-parameter temperature rescaling fixes. Split conformal prediction is the uncertainty layer that holds up. It delivers the requested coverage on average, but coverage collapses on rare grades unless a per-class quantile is used. Out of distribution, transfer from APTOS to Messidor-2 collapses to a single predicted grade until a prior-shift correction is applied, after which performance recovers part-way but stays well below clinical agreement. The contribution is a calibrated map of what helps frozen-feature DR grading, what does not, and where the in-domain numbers stop being trustworthy.
+\end{abstract}
+
+\begin{IEEEkeywords}
+    diabetic retinopathy, ordinal regression, foundation models, RETFound, DINOv2, calibration, conformal prediction, cross-dataset generalisation.
+\end{IEEEkeywords}
+
+\section{Introduction}
+
+\IEEEPARstart{D}{iabetic} retinopathy (DR) is a leading cause of preventable blindness in working-age adults, and automating severity grading from colour fundus photographs (Figure~\ref{fig:grades}) is one of the most-benchmarked tasks in medical AI. Recent progress on it has come from two largely independent directions. One is stronger frozen backbones, including retinal foundation models like RETFound \cite{ref:retfound} and general-purpose vision transformers like DINOv2 \cite{ref:dinov2}. The other is richer prediction heads such as ordinal-regression decompositions \cite{ref:niu} and capsule networks \cite{ref:sabour}. It remains unclear which of those two levers actually moves the needle, and whether the resulting confidences are trustworthy enough to act on.
+
+\begin{figure*}[!t]
+    \centering
+    \includegraphics[width=\textwidth]{figs/fig_0_grade_samples.pdf}
+    \caption{Representative APTOS-2019 samples across the five-point ICDR severity scale. Preprocessing follows the official RETFound evaluation transform (Resize-256 bicubic $\to$ CenterCrop-224 $\to$ ImageNet normalise). Clinical descriptors are standard ICDR definitions.}
+    \label{fig:grades}
+\end{figure*}
+
+Recent DR-grading work has pushed on backbone scale (ViT-L ensembles, ConvNeXt-Base \cite{ref:uaorlqap}, MAFNet \cite{ref:mafnet}, Dual-SwinOrd \cite{ref:dualswinord}), on ordinal formulations (autoregressive \cite{ref:aordr}, evidential \cite{ref:uaorlqap}), and on richer uncertainty layers (Bayesian heads, ensembles, evidential losses). This paper asks an orthogonal question. How much does the head actually matter once the backbone is frozen, and which uncertainty story survives an honest audit?
+
+The headline finding from the head$\times$backbone grid is that the backbone dominates the head. Swapping the domain-specific RETFound for the generalist DINOv2 lifts grading agreement substantially on both datasets, an order of magnitude more than swapping the prediction head. On Messidor-2 with DINOv2 features the simple MLP head actually \emph{beats} the capsule. The advantage of capsule routing over the much simpler MLP+$K{-}1$ baseline is real but small on APTOS, and it disappears or reverses once the backbone is strong enough. This narrows the case for domain-specific retinal pretraining and for capsule routing to a single regime, namely the 2023-generation RETFound-MAE backbone paired with a small ordinal head.
+
+The capsule head is also commonly credited with a \emph{native} uncertainty signal, namely the margin between the top two capsule lengths. We find this signal essentially indistinguishable from the analogous top-2 margin of a plain MLP with sigmoid outputs, and the underlying capsule-length probabilities are systematically over-confident. A single-parameter temperature rescaling closes most of the calibration gap, but on stricter scoring rules the MLP head still wins. The capsule margin behaves as a useful \emph{discriminative} score for ranking confident predictions. It is not a calibrated probability.
+
+Split conformal prediction is the uncertainty layer that holds up. Asked for a $90\%$ confidence level, it returns a small \emph{set} of grades that contains the true grade $90\%$ of the time \emph{averaged over all patients}, and this guarantee holds on every cell of our grid. The catch is in the word \emph{averaged}. Under the standard scoring rules, that average is met by being very accurate on the no-DR majority while leaving the rare severe-DR cases under-covered, exactly the patients we can least afford to miss. A per-class quantile restores the guarantee \emph{separately for each grade} at a small cost in average set size. Conformal therefore turns frozen-feature DR grading into a probabilistically meaningful screening tool, with the caveat that per-grade reliability requires the per-class fix.
+
+As a separate cross-dataset diagnostic, the APTOS-trained frozen head collapses to a near-constant Grade-0 predictor on Messidor-2 (99.4\% Grade-0 predictions; Zoellin et al.\ \cite{ref:zoellin} report frozen-RETFound Messidor QKappa of exactly $0.0$ in an independent setup). A standard post-hoc rescaling, using only the expected grade distribution on Messidor-2 with no true labels \cite{ref:saerens,ref:bbse}, lifts the model's agreement with clinicians from essentially zero to the \emph{fair} band of the standard kappa scale, still well below the threshold expected for clinical screening. We report this as a diagnostic that the failure is a threshold miscalibration rather than a feature-space collapse, not as a domain-adaptation contribution.
+
+\noindent\textbf{Contributions.}
+\begin{itemize}
+    \item \textbf{Decomposing backbone vs head effects.} A fully-crossed $2{\times}2$ head$\times$backbone ablation (capsule and MLP+$K{-}1$ heads, RETFound and DINOv2 features) on APTOS and Messidor-2 at $3$ seeds $\times$ $5$ folds, with paired Wilcoxon tests on per-fold QWK.
+    \item \textbf{Auditing native capsule confidence.} Calibration of the chain-rule probability across all nine head$\times$backbone$\times$dataset cells with ECE, MCE, Brier, NLL, AURC, and risk-at-coverage, plus a temperature-scaling post-hoc baseline.
+    \item \textbf{Conformal coverage under class imbalance.} A four-score conformal comparison (LAC, APS, RAPS, and a Mondrian per-class quantile), reporting marginal and worst-class coverage with set-size cost.
+    \item \textbf{A cross-dataset diagnostic for APTOS$\to$Messidor-2.} Frozen-head transfer evaluated under a label-free prior-shift correction, framed as a threshold-miscalibration diagnostic rather than a domain-adaptation contribution.
+    \item \textbf{Reproducibility.} Code, configs, cached features, per-fold predictions, and figure/table regeneration scripts at \url{https://github.com/vineetkumar-sudo/retfound-capsnet}.
+\end{itemize}
+
+The remainder of this paper is organized as follows. Section~\ref{sec:related} reviews related work. Section~\ref{sec:method} describes the heads, backbones, and UQ layers, and Section~\ref{sec:setup} covers the datasets and protocol. Section~\ref{sec:results} reports the experiments, followed by a discussion in Section~\ref{sec:discussion}, limitations in Section~\ref{sec:limitations}, and conclusions in Section~\ref{sec:conclusion}. Negative ablations are collected in Appendix~\ref{sec:negatives}.
+
+\section{Related Work}
+\label{sec:related}
+
+\subsection{Ordinal DR grading}
+Niu et al.\ \cite{ref:niu} introduced the $K{-}1$ binary decomposition. The model trains $K{-}1$ binary classifiers, each answering whether the rank exceeds threshold $k$, and decodes the rank as $1 + \sum_k \mathbf{1}[f_k(x){>}0.5]$. Recent DR-specific extensions vary the backbone and the loss. Kumar et al.\ \cite{ref:stageaware} pair a ResNet-50 with MSE regression. Yu et al.\ \cite{ref:aordr} introduce AOR-DR, an autoregressive $K{-}1$ decomposition combined with a conditional diffusion network on a frozen RETFound backbone. El Bellaj et al.\ \cite{ref:uaorlqap} pair a ConvNeXt-Base with an evidential Dirichlet head. MAFNet \cite{ref:mafnet} is a multi-scale adaptive fine-grained network. Dual-SwinOrd \cite{ref:dualswinord} pairs a Swin Transformer backbone with a PubMedCLIP-guided semantic prior and dual classification and ordinal-regression heads. Our setup is deliberately simpler so the backbone, head, and uncertainty-layer effects can be cleanly separated.
+
+\subsection{Foundation models for retinal imaging}
+RETFound \cite{ref:retfound} is a ViT-L masked autoencoder pretrained on $904$k CFPs and $736$k OCT scans. DINOv2 \cite{ref:dinov2} is a general-purpose self-supervised ViT trained on LVD-142M without retinal specialisation. A recent head-to-head evaluation on retinal downstream tasks \cite{ref:dinov2_vs_retfound} reports that DINOv2 outperforms RETFound on ocular-disease detection (including DR) while RETFound retains an edge on systemic-disease incidence prediction. Poyrazer et al.\ \cite{ref:medsiglip_comparison} benchmark frozen-encoder cross-dataset transfer for DR with calibration as a co-primary endpoint, and Isztl et al.\ \cite{ref:foundation_benchmark} evaluate the parameter-cost of specialised retinal backbones across multiple retinal imaging tasks. The LoRA adapter \cite{ref:lora} is used as our lightweight fine-tuning counterpoint.
+
+\subsection{Capsule networks for DR}
+Sabour, Frosst, and Hinton \cite{ref:sabour} introduced capsules with routing-by-agreement and a margin loss. On retinal fundus photography, Gogulamudi et al.\ \cite{ref:gogulamudi} propose a non-uniform squash on a custom 7-class dataset, and Lei et al.\ \cite{ref:gfcapsnet} fuse a GNN layer into the PrimaryCaps$\to$DigitCaps transformation. Neither reports QWK, cross-dataset evaluation, or calibration.
+
+\subsection{Calibration and conformal UQ in medical imaging}
+Two frameworks are standard for attaching uncertainty to neural-network classifiers. Expected Calibration Error (ECE) \cite{ref:guo_calibration} measures the average gap between a model's reported confidence and its empirical accuracy across equal-mass confidence bins, and indicates whether the reported probabilities can be trusted as probabilities. Split conformal prediction \cite{ref:vovk_conformal,ref:shafer_tutorial} operates differently, returning a small set of candidate labels per input with a distribution-free marginal-coverage guarantee that depends only on exchangeability between the calibration and test data, not on whether the underlying probabilities are well-calibrated. For multi-class problems, LAC \cite{ref:sadinle} and APS \cite{ref:romano} are the canonical nonconformity scores. Shi et al.\ \cite{ref:rank_conformal} address the class-conditional coverage gap that LAC and APS exhibit, by augmenting label ranks.
+
+\subsection{Other CNN-based DR pipelines}
+Bodapati and Balaji \cite{ref:bodapati} use a dual-attention VGG16 + Xception stacking ensemble. Dixit and Jha \cite{ref:dixit} use EfficientNetB3 with a squeeze-and-excitation block. Oulhadj et al.\ \cite{ref:oulhadj} apply deformable-registration preprocessing combined with a 4-CNN ensemble.
+
+\section{Method}
+\label{sec:method}
+
+\subsection{Backbones}
+We evaluate two frozen ViT-L-scale backbones at 224$\times$224 input resolution. RETFound ViT-L/16 \cite{ref:retfound} is pretrained on retinal CFPs. DINOv2 ViT-L/14 \cite{ref:dinov2} is pretrained on 142M natural images with no retinal specialisation. Both produce a 1024-dim CLS token; the preprocessing pipeline (Resize-256 bicubic $\to$ CenterCrop-224 $\to$ ImageNet normalise) is identical for both backbones, so the only changing variable is the backbone weights. A LoRA rank-8 variant of RETFound \cite{ref:lora} is added as a fine-tuning counterpoint (see Section~\ref{sec:lora}).
+
+\subsection{Ordinal heads on frozen features}
+We compare two head architectures, both using Niu's $K{-}1$ binary decomposition and an identical Sabour-style margin loss with $m^+ = 0.9$, $m^- = 0.1$, $\lambda = 0.5$ \cite{ref:sabour}. Head A (\textit{Ordinal CapsNet}) is a PrimaryCaps layer (32 capsules of dim 8) followed by four independent DigitCaps heads (2 capsules of dim 16, 3 routing iterations per head), one per ordinal threshold. Head B (\textit{MLP + $K{-}1$ sigmoid}) is a plain MLP ($1024 \to 256 \to 256 \to \mathbb{R}^{K-1}$) with four independent sigmoid output heads. Head B is a direct no-capsule comparator with no routing and no capsule nonlinearity, using the same loss and the same decomposition. Trainable parameter counts are $\sim\!295$K (CapsNet) and $\sim\!329$K (MLP-K1) respectively, capacity-matched within $10\%$ so the ablation does not confound capacity with architecture.
+
+\subsection{LoRA variant}
+\label{sec:lora}
+In the LoRA configuration we unfreeze nothing in RETFound but inject rank-8 adapters into the fused \texttt{attn.qkv} projection of every ViT-L block (24 blocks). Scaling $\alpha = 16$, dropout $0.05$. The optimiser uses two groups, with LoRA learning rate $10^{-4}$ and head learning rate $10^{-3}$. Total trainable count is $\sim\!1.08$M ($0.35\%$ of the backbone's 307M).
+
+\subsection{Decoding and chain-rule probability}
+At inference, each head produces a probability $\hat{p}_k = P(y{>}k\,|\,x)$ from the length of its positive capsule (CapsNet) or its sigmoid output (MLP-K1). The predicted grade is
+\begin{equation}
+    \hat{y} \;=\; \sum_{k=0}^{K-2} \mathbf{1}\bigl[\hat{p}_k > 0.5\bigr].
+    \label{eq:predict}
+\end{equation}
+We also compute the chain-rule 5-class probabilities $P(y{=}k) = \hat{p}_{k-1}(1{-}\hat{p}_k)$ with the usual boundary conventions, clipped to zero and renormalised to sum to one (required when the raw heads are non-monotonic). All UQ metrics below (ECE, AURC, conformal) operate on this common probability basis.
+
+\subsection{Uncertainty quantification}
+\label{sec:uq-method}
+We evaluate the following UQ views on the same chain-rule probabilities.
+
+\emph{Calibration.} Expected Calibration Error with 10 equal-mass bins on the confidence signal $c_i = P(y = \hat{y}_i)$ (i.e., calibration of the model's confidence in its own K-1 decision). We also report MCE (worst-bin gap).
+
+\emph{Selective prediction.} Area Under the Risk--Coverage curve (AURC) and its excess over the oracle. We compare two confidence signals: (i) $\max_k P(y{=}k)$ and (ii) the prediction margin $1 - (p_{\text{top}_1} - p_{\text{top}_2})$, which has been highlighted in recent capsule-UQ work.
+
+\emph{Conformal prediction.} Split conformal with two nonconformity scores, LAC \cite{ref:sadinle} (nonconformity $= 1 - P(y_{\text{true}})$) and APS \cite{ref:romano} (cumulative descending probability). Calibration and test halves are drawn by a 50:50 random split, averaged over five split seeds. Conformal requires only exchangeability, not calibration, so it gives a guarantee that survives the ECE problems documented in Section~\ref{sec:calibration}.
+
+\section{Experimental Setup}
+\label{sec:setup}
+
+\subsection{Datasets}
+\textbf{APTOS-2019} \cite{ref:aptos} contains 3{,}662 colour fundus photographs (CFPs) with 5-class ICDR severity labels. \textbf{Messidor-2} \cite{ref:messidor2,ref:abramoff,ref:krause} contains 1{,}744 gradable images with adjudicated 5-class labels. \textbf{IDRiD} \cite{ref:idrid} contains 413 training and 103 official-test images with 5-class labels.
+
+\subsection{Metrics}
+\label{sec:metrics}
+We report metrics in three families.
+
+\textit{Grading agreement.} Quadratic Weighted Kappa (QWK) is the primary metric. It measures agreement with the clinician label on the ordinal ICDR scale and penalises distant errors more than adjacent ones. QWK $1.0$ is perfect agreement and $0$ is chance. Following the standard Landis and Koch interpretation \cite{ref:landiskoch}, we read $\geq 0.61$ as substantial, $0.41$ to $0.60$ as moderate, $0.21$ to $0.40$ as fair, and below $0.20$ as slight or worse. We also report top-1 accuracy, macro-F1, and mean absolute error in grade units.
+
+\textit{Probability calibration.} Expected Calibration Error (ECE) bins predictions by their confidence and reports the average gap between confidence and accuracy. Maximum Calibration Error (MCE) reports the worst single bin. Brier score and negative log-likelihood (NLL) are proper scoring rules that combine calibration and discrimination. Lower is better for all four.
+
+\textit{Selective prediction and prediction sets.} Area Under the Risk-Coverage curve (AURC) measures how cleanly a confidence signal can rank correct against incorrect predictions for selective prediction. For conformal prediction we report marginal coverage (the fraction of test samples whose true grade lies in the predicted set), worst-class coverage (the same fraction restricted to the rarest grade), and mean prediction-set size at confidence level $1 - \alpha$ for $\alpha \in \{0.10, 0.05\}$.
+
+\subsection{Protocol}
+Every row of the APTOS ablation is 3 seeds $\times$ 5 folds (seeds $\{42, 123, 456\}$). The LoRA fine-tune reported in Section~\ref{sec:aptos} uses the same protocol. On APTOS we set aside a class-stratified $10\%$ holdout and run stratified 5-fold CV on the remaining $90\%$. On Messidor-2 we run stratified 5-fold within-dataset and additionally report APTOS$\to$Messidor-2 cross-dataset transfer with no Messidor-2 training. IDRiD is used for within-dataset evaluation and APTOS$\to$IDRiD cross-dataset transfer on the RETFound backbone only. Data splits are fixed across seeds by \texttt{cfg.data.seed}, so only the model-init RNG varies. Early-stopping patience is 30 epochs on validation QWK (8 for LoRA, which converges in roughly half the budget). The optimiser is AdamW with weight decay $10^{-4}$.
+
+\section{Results}
+\label{sec:results}
+
+\subsection{APTOS ablation}
+\label{sec:aptos}
+
+Table~\ref{tab:aptos} reports the head-level ablation on frozen RETFound features. Every row is 3 seeds $\times$ 5-fold CV.
+
+\begin{table*}[!t]
+    \caption{APTOS-2019 head ablation on frozen RETFound ViT-L/16 features. Every row is 3 seeds $\times$ 5-fold CV (seeds 42/123/456). QWK, Accuracy, and Macro-F1: higher is better. MAE: lower is better. Best value per column in \textbf{bold}.}
+    \label{tab:aptos}
+    \centering
+    \footnotesize
+    \begin{tabular}{@{}clcccc@{}}
+        \toprule
+        \# & Model                                       & QWK                          & Accuracy                     & Macro-F1                     & MAE                        \\
+        \midrule
+        1  & Linear + CE                                 & $0.8389 \pm 0.0122$          & $0.7971 \pm 0.0038$          & $0.6011 \pm 0.0144$          & $0.291 \pm 0.011$          \\
+        2  & MLP + CE                                    & $0.8783 \pm 0.0022$          & $0.8057 \pm 0.0012$          & $0.6271 \pm 0.0021$          & $0.259 \pm 0.001$          \\
+        3  & MLP + MSE                                   & $0.8831 \pm 0.0011$          & $0.7445 \pm 0.0016$          & $0.5491 \pm 0.0069$          & $0.294 \pm 0.002$          \\
+        4  & MLP + Weighted CE                           & $0.8607 \pm 0.0014$          & $0.7679 \pm 0.0022$          & $0.6156 \pm 0.0046$          & $0.307 \pm 0.002$          \\
+        5  & Vanilla CapsNet                             & $0.8696 \pm 0.0026$          & $\mathbf{0.8061 \pm 0.0046}$ & $\mathbf{0.6301 \pm 0.0044}$ & $0.263 \pm 0.003$          \\
+        6  & Ordinal CapsNet                             & $\mathbf{0.8932 \pm 0.0004}$ & $0.7931 \pm 0.0021$          & $0.6255 \pm 0.0022$          & $\mathbf{0.254 \pm 0.002}$ \\
+        7  & MLP + $K{-}1$ sigmoid                       & $0.8866 \pm 0.0004$          & $0.7963 \pm 0.0041$          & $0.6250 \pm 0.0048$          & $0.257 \pm 0.003$          \\
+        8  & \quad Ordinal + Asymmetric loss$^{\dag}$    & $0.8923 \pm 0.0014$ & $0.7911 \pm 0.0025$ & $0.6201 \pm 0.0019$ & $0.256 \pm 0.004$ \\
+        9  & \quad Ordinal + KC Loss$^{\dag}$            & $0.8914 \pm 0.0006$ & $0.7819 \pm 0.0025$ & $0.6130 \pm 0.0028$ & $0.264 \pm 0.003$ \\
+        10 & \quad Ordinal + Non-uniform squash$^{\dag}$ & $0.8894 \pm 0.0006$ & $0.7857 \pm 0.0059$ & $0.6097 \pm 0.0095$ & $0.264 \pm 0.004$ \\
+        \bottomrule
+        \multicolumn{6}{l}{\scriptsize $^{\dag}$ Negative-result ablations. See Appendix~\ref{sec:negatives}.}
+    \end{tabular}
+\end{table*}
+
+The $K{-}1$ ordinal decomposition is the larger head-level lever; capsule routing is a smaller second-order improvement on top of it. Moving from plain MLP+CE to MLP+$K{-}1$ lifts QWK by $+0.0083$. Adding capsule routing on top of MLP+$K{-}1$, which gives our Ordinal CapsNet head, lifts QWK by a further $+0.0066$. Both contributions are outside seed noise (across-seed std $\leq 0.0004$ on each row).
+
+\textit{What fine-tuning buys.} For comparison, fine-tuning the RETFound backbone with LoRA r=8 (1.08 M trainable parameters injected into the attention projections, $\sim$16 h per seed on MPS) and keeping the same Ordinal CapsNet head reaches QWK $0.9127 \pm 0.0008$ on the same 3-seed 5-fold protocol, an additional $+0.020$ QWK over the same head on frozen RETFound features. The remainder of this paper analyses frozen-feature configurations on consumer hardware; we report LoRA only as a compute-tier anchor.
+
+\subsection{Head\,$\times$\,Backbone 2$\times$2 ablation}
+\label{sec:head-backbone}
+
+Table~\ref{tab:head_backbone} is the fully crossed ablation on APTOS and Messidor-2. The single-variable change column (backbone) yields a substantially larger effect than the orthogonal single-variable change (head) on both datasets.
+
+\begin{table*}[!t]
+    \caption{Head $\times$ Backbone 2$\times$2 ablation. APTOS rows are 3 seeds $\times$ 5-fold CV; Messidor-2 rows are 5-fold CV within the 1{,}744 gradable images. All cells use the same preprocessing, the same K-1 decomposition, and the same margin loss.}
+    \label{tab:head_backbone}
+    \centering
+    \footnotesize
+    \begin{tabular}{@{}lcccccc@{}}
+        \toprule
+                        & \multicolumn{3}{c}{\textbf{APTOS-2019 QWK}} & \multicolumn{3}{c}{\textbf{Messidor-2 within QWK}}                                                                                     \\
+        \cmidrule(r){2-4}\cmidrule(l){5-7}
+        Head            & RETFound                                    & DINOv2                                             & $\Delta$ backbone & RETFound            & DINOv2              & $\Delta$ backbone \\
+        \midrule
+        Ordinal CapsNet & $0.8932 \pm 0.0004$                         & $0.9089 \pm 0.0021$                                & $+0.0157$         & $0.6065 \pm 0.0363$ & $0.7525 \pm 0.0222$ & $+0.1460$         \\
+        MLP + K-1 sig   & $0.8866 \pm 0.0004$                         & $0.9034 \pm 0.0002$                                & $+0.0168$         & $0.5852 \pm 0.0405$ & $0.7643 \pm 0.0148$ & $+0.1791$         \\
+        $\Delta$ head   & $+0.0066$                                   & $+0.0055$                                          & ---               & $+0.0213$           & $-0.0118$           & ---               \\
+        \bottomrule
+    \end{tabular}
+\end{table*}
+
+DINOv2 beats RETFound at frozen-feature DR grading cleanly on both datasets and both heads. On Messidor-2 the backbone effect ($+0.146$ to $+0.179$ QWK) is roughly $10\times$ the head effect ($\pm 0.021$ QWK), and under the stronger DINOv2 backbone the head ranking flips. MLP-K1 beats the capsule head by $+0.012$ QWK. The head is a smaller lever than the backbone in this regime, and once the backbone is strong enough the capsule machinery can even hurt.
+
+\subsection{Calibration analysis}
+\label{sec:calibration}
+
+Table~\ref{tab:calibration} summarises the calibration and selective-prediction metrics across all nine configurations. Figure~\ref{fig:reliability_aptos} shows reliability diagrams for the APTOS head$\times$backbone $2{\times}2$.
+
+\begin{table*}[!t]
+    \caption{Calibration and selective prediction across the head$\times$backbone grid. ECE / MCE use 10 equal-mass bins on the per-sample confidence $P(y=\hat{y})$. AURC (max-p) uses max chain-rule probability as the selective-prediction signal; AURC (margin) uses the top-2 prediction margin. Lower is better for all four UQ columns. Renorm is the fraction of samples where the chain-rule probability required renormalisation (i.e., the heads were non-monotonic in the raw chain-rule product). \textbf{Bold} = best per column among frozen-feature rows; the LoRA row is reported as a fine-tuning compute-tier anchor.}
+    \label{tab:calibration}
+    \centering
+    \footnotesize
+    \begin{tabular}{@{}llccccccc@{}}
+        \toprule
+        Dataset    & Model                             & Acc            & ECE            & MCE            & AURC (max-p)   & AURC (margin)  & Renorm \\
+        \midrule
+        APTOS      & RETFound $\times$ Ordinal CapsNet & 0.793          & 0.151          & 0.224          & 0.0599         & 0.0609         & 100\%  \\
+        APTOS      & RETFound $\times$ MLP-K1          & 0.796          & \textbf{0.091} & \textbf{0.174} & 0.0624         & 0.0604         & 86\%   \\
+        APTOS      & DINOv2 $\times$ Ordinal CapsNet   & \textbf{0.809} & 0.115          & 0.167          & \textbf{0.049} & \textbf{0.048} & 100\%  \\
+        APTOS      & DINOv2 $\times$ MLP-K1            & 0.805          & 0.102          & 0.173          & 0.051          & 0.049          & 100\%  \\
+        APTOS      & RETFound $\times$ Ordinal + LoRA  & 0.824          & 0.141          & 0.194          & 0.050          & 0.050          & 100\%  \\
+        \midrule
+        Messidor-2 & RETFound $\times$ Ordinal CapsNet & 0.556          & 0.083          & 0.208          & 0.258          & 0.257          & 100\%  \\
+        Messidor-2 & RETFound $\times$ MLP-K1          & 0.579          & 0.086          & 0.153          & 0.237          & 0.235          & 100\%  \\
+        Messidor-2 & DINOv2 $\times$ Ordinal CapsNet   & 0.658          & 0.132          & 0.231          & 0.187          & 0.187          & 100\%  \\
+        Messidor-2 & DINOv2 $\times$ MLP-K1            & \textbf{0.710} & 0.090          & 0.159          & \textbf{0.174} & \textbf{0.170} & 100\%  \\
+        \bottomrule
+    \end{tabular}
+\end{table*}
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{figs/fig_reliability_aptos.pdf}
+    \caption{APTOS reliability diagrams for the four head$\times$backbone cells. Bubble size is bin weight. A perfectly calibrated head would lie on the dashed diagonal. The capsule heads (top-left, bottom-left) are systematically over-confident relative to the MLP-K1 sigmoid head.}
+    \label{fig:reliability_aptos}
+\end{figure}
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{figs/fig_risk_coverage_aptos.pdf}
+    \caption{APTOS risk--coverage curves (max-p selector). Lower is better. DINOv2 curves dominate RETFound curves; within each backbone, capsule and MLP heads are near-identical.}
+    \label{fig:risk_coverage_aptos}
+\end{figure}
+
+The capsule head is systematically worse-calibrated than the MLP-K1 sigmoid head on APTOS (ECE $0.151$ vs.\ $0.091$ at RETFound; $0.115$ vs.\ $0.102$ at DINOv2). The mechanistic reason is that the Sabour margin loss \cite{ref:sabour} is a geometric clamping objective, not a proper scoring rule. It pushes the positive-capsule length above $m^+=0.9$ and the negative below $m^-=0.1$ regardless of the empirical base rate, whereas cross-entropy and log-loss on sigmoid outputs are minimised only when the predicted probability matches the true posterior. The non-linear squash further compresses vector magnitudes in a class-symmetric way that decouples length from observed frequency. The capsule's high ECE is thus not a training artefact but a direct consequence of the loss. LoRA inherits the miscalibration (ECE $0.141$) while improving discrimination.
+
+Temperature scaling \cite{ref:guo_calibration} recovers most of the ECE gap (Table~\ref{tab:calibration_ts}). On APTOS the post-TS ECE is in the $0.016$ to $0.025$ range for every configuration, with fitted $T < 1$ everywhere (heads are over-confident and need softening). TS is less effective under domain shift (Messidor-2 post-TS ECE $0.030$ to $0.054$). It does not, however, close the Brier and NLL gap. Even post-TS, MLP-K1 ends up with the lowest Brier on Messidor-2 ($0.411$ vs.\ $0.444$ for DINOv2 $\times$ Ordinal CapsNet). The capsule head's probability estimates are recoverable as calibrated scalars via TS, but their joint distribution over classes remains inferior to a plainer head.
+
+The capsule \emph{prediction margin} is also a valid selective-prediction signal but not a unique one. AURC (margin) and AURC (max-p) agree within $\pm 0.004$ on every cell, and a vanilla MLP-K1 top-2 margin matches both. The UQ value attributed in prior work to the capsule nonlinearity is duplicated by the chain-rule 5-class probabilities of any $K{-}1$ head, capsule or otherwise.
+
+\begin{table*}[!t]
+    \caption{Temperature scaling on the chain-rule probabilities. T is fitted on a 50\% random calibration split by minimising NLL; metrics are reported on the held-out 50\%. T $<$ 1 indicates over-confidence. ECE uses 10 equal-mass bins on $P(y = \hat{y})$. Lower is better for ECE, Brier, NLL.}
+    \label{tab:calibration_ts}
+    \centering
+    \footnotesize
+    \begin{tabular}{@{}llcccccc@{}}
+        \toprule
+        Dataset & Model                    & T    & ECE$^{\text{pre}}$ & ECE$^{\text{post}}$ & Brier$^{\text{post}}$ & NLL$^{\text{post}}$ \\
+        \midrule
+        APTOS   & RET$\times$Ord.\ Caps    & 0.57 & 0.152              & 0.016               & 0.286                 & 0.568               \\
+        APTOS   & RET$\times$MLP-K1        & 0.68 & 0.090              & 0.025               & \textbf{0.289}        & 0.577               \\
+        APTOS   & DINO$\times$Ord.\ Caps   & 0.63 & 0.119              & 0.020               & 0.262                 & 0.522               \\
+        APTOS   & DINO$\times$MLP-K1       & 0.60 & 0.099              & \textbf{0.016}      & 0.265                 & \textbf{0.500}      \\
+        APTOS   & RET$\times$Ord.\ +\,LoRA & 0.61 & 0.142              & 0.020               & \textbf{0.253}        & 0.511               \\
+        \midrule
+        Mess-2  & RET$\times$Ord.\ Caps    & 0.72 & 0.091              & 0.054               & 0.527                 & 0.999               \\
+        Mess-2  & RET$\times$MLP-K1        & 0.69 & 0.096              & 0.030               & 0.514                 & 0.981               \\
+        Mess-2  & DINO$\times$Ord.\ Caps   & 0.61 & 0.134              & 0.047               & 0.444                 & 0.840               \\
+        Mess-2  & DINO$\times$MLP-K1       & 0.72 & 0.097              & \textbf{0.032}      & \textbf{0.411}        & \textbf{0.756}      \\
+        \bottomrule
+    \end{tabular}
+\end{table*}
+
+\subsection{Conformal prediction}
+\label{sec:conformal}
+
+Calibration is miscalibrated because the margin loss does not encourage it; conformal prediction sidesteps the problem by producing coverage guarantees that depend only on exchangeability, not on probability calibration. Table~\ref{tab:conformal} shows marginal coverage and average set size at $\alpha = 0.10$ for all nine configurations, averaged over five random cal/test splits.
+
+\begin{table*}[!t]
+    \caption{Split conformal prediction at $\alpha = 0.10$. Marginal coverage is the fraction of test samples whose true label is in the prediction set; the target is 90\%. Mean $|S|$ is the average set size (smaller = more informative, for the same coverage). Rows are five random cal/test 50:50 splits. \textbf{Bold} = best per column among frozen-feature rows; the LoRA row is reported as a fine-tuning compute-tier anchor.}
+    \label{tab:conformal}
+    \centering
+    \footnotesize
+    \begin{tabular}{@{}llcc@{}}
+        \toprule
+        Dataset    & Model                             & Marginal cov.     & Mean $|S|$               \\
+        \midrule
+        APTOS      & RETFound $\times$ Ordinal CapsNet & $0.902 \pm 0.005$ & $1.38 \pm 0.02$          \\
+        APTOS      & RETFound $\times$ MLP-K1          & $0.904 \pm 0.005$ & $1.38 \pm 0.03$          \\
+        APTOS      & DINOv2 $\times$ Ordinal CapsNet   & $0.903 \pm 0.004$ & $1.33 \pm 0.02$          \\
+        APTOS      & DINOv2 $\times$ MLP-K1            & $0.903 \pm 0.004$ & $\mathbf{1.30 \pm 0.02}$ \\
+        APTOS      & RETFound $\times$ Ordinal + LoRA  & $0.904 \pm 0.006$ & $1.27 \pm 0.03$          \\
+        \midrule
+        Messidor-2 & RETFound $\times$ Ordinal CapsNet & $0.903 \pm 0.017$ & $2.30 \pm 0.11$          \\
+        Messidor-2 & RETFound $\times$ MLP-K1          & $0.905 \pm 0.011$ & $2.32 \pm 0.07$          \\
+        Messidor-2 & DINOv2 $\times$ Ordinal CapsNet   & $0.905 \pm 0.008$ & $1.94 \pm 0.08$          \\
+        Messidor-2 & DINOv2 $\times$ MLP-K1            & $0.900 \pm 0.004$ & $\mathbf{1.75 \pm 0.04}$ \\
+        \bottomrule
+    \end{tabular}
+\end{table*}
+
+Every configuration hits the $90\%$ coverage target (observed range $89.4\%$ to $90.6\%$), as expected from the exchangeability guarantee of split CP \cite{ref:vovk_conformal}; what we are empirically verifying is that the guarantee holds on our data pipeline and that set-size efficiency varies meaningfully across configurations. Mean set size falls from $1.38$ (RETFound $\times$ Ordinal CapsNet on APTOS) to $1.27$ (LoRA), and from $2.32$ (RETFound $\times$ MLP-K1 on Messidor-2) to $1.75$ (DINOv2 $\times$ MLP-K1): better backbones and better fine-tunes produce more informative prediction sets at the same coverage. RAPS \cite{ref:raps} ($k_{\text{reg}}=1$, $\lambda=0.01$) gives set sizes a hair smaller than APS (APTOS $1.77$ vs.\ $1.80$ on RETFound $\times$ CapsNet; differences in the third decimal on every cell), consistent with the original Angelopoulos 2021 report on ImageNet. Within each backbone, the capsule and MLP heads produce near-identical set sizes.
+
+\textbf{A note on non-contiguous sets.} The LAC, APS, and RAPS scores we use treat the five DR grades as an unordered label set, so their prediction sets can in principle be non-contiguous under the ordinal scale. For example, $\{0, 3\}$ is a valid prediction set even though it violates the ordinal semantics. Measured across our pooled 5-seed single-split predictions at $\alpha = 0.10$, the non-contiguous-set rate is $2.3\%$ (LAC), $8.6\%$ (APS), and $8.7\%$ (RAPS) on APTOS and $2.6\%$, $7.7\%$, $7.8\%$ on Messidor-2. The rates are concentrated on low-confidence samples near adjacent-grade decision boundaries. An ordinal-aware conformal construction that enforces contiguous intervals would not affect marginal coverage but would sharpen the prediction-set interpretation for clinical triage. We flag it as an open item alongside RC3P.
+
+\textbf{Class-conditional coverage and a Mondrian fix.} The interesting empirical finding is that the marginal guarantee does not transfer to per-class coverage. At $\alpha = 0.10$ with APS, worst-class coverage drops to $0.583$ (DINOv2 $\times$ MLP-K1, C4/PDR on Messidor-2), $0.667$ (DINOv2 $\times$ Ordinal on Messidor-2, C2/Moderate), and $0.78$--$0.84$ on APTOS minority classes (C1/Mild, C4/PDR). For a clinical-safety-sensitive task like DR grading, a $\sim\!60\%$ coverage on Severe/PDR patients is a first-order problem, not a footnote. Substituting a Mondrian \cite{ref:mondrian,ref:ccp} per-class quantile lifts worst-class coverage to $0.82$--$0.90$ across every configuration, at the cost of $+0.5$ set-size points on APTOS and $+1.0$--$1.2$ on Messidor-2 (Table~\ref{tab:ccp}). On the hardest cell (DINOv2 $\times$ MLP-K1 on Messidor-2) the worst-class jump is $+0.26$ ($0.58 \to 0.84$); the efficiency cost is a mean-set-size increase from $1.97$ to $2.38$. CCP is the closest-to-RC3P \cite{ref:rank_conformal} fix that does not require new training and is achievable under our MPS budget; for a clinical deployment, RC3P and related class-conditional extensions are the natural next step.
+
+\begin{table}[!t]
+    \caption{Mondrian CCP vs.\ APS, $\alpha=0.10$, single-split seed 42. ``Worst'' is min per-class coverage; smaller gap to target (0.90) is better. CCP achieves class-conditional coverage at a set-size cost.}
+    \label{tab:ccp}
+    \centering
+    \footnotesize
+    \begin{tabular}{@{}llccccc@{}}
+        \toprule
+        Dataset & Model              & \multicolumn{2}{c}{APS} & \multicolumn{2}{c}{CCP} & $\Delta$ worst                            \\
+                &                    & worst                   & $|S|$                   & worst          & $|S|$ &                  \\
+        \midrule
+        APTOS   & RET$\times$Ord     & 0.78                    & 1.80                    & 0.90           & 1.86  & $+0.12$          \\
+        APTOS   & RET$\times$MLP-K1  & 0.80                    & 1.89                    & 0.89           & 1.78  & $+0.09$          \\
+        APTOS   & DINO$\times$Ord    & 0.84                    & 1.73                    & 0.87           & 1.78  & $+0.03$          \\
+        APTOS   & DINO$\times$MLP-K1 & 0.84                    & 1.79                    & 0.88           & 1.65  & $+0.04$          \\
+        APTOS   & RET$\times$LoRA    & 0.78                    & 1.69                    & 0.90           & 1.80  & $+0.12$          \\
+        \midrule
+        Mess-2  & RET$\times$Ord     & 0.74                    & 2.54                    & 0.88           & 3.48  & $+0.14$          \\
+        Mess-2  & RET$\times$MLP-K1  & 0.72                    & 2.50                    & 0.83           & 3.25  & $+0.11$          \\
+        Mess-2  & DINO$\times$Ord    & 0.67                    & 2.06                    & 0.82           & 2.95  & $+0.15$          \\
+        Mess-2  & DINO$\times$MLP-K1 & 0.58                    & 1.97                    & 0.84           & 2.38  & $\mathbf{+0.26}$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Within-Messidor-2}
+\label{sec:messidor-within}
+
+Within Messidor-2 (Table~\ref{tab:head_backbone}, right half), the Ordinal CapsNet + DINOv2 combination reaches QWK $0.7525 \pm 0.022$, and the MLP-K1 + DINOv2 combination reaches $0.7643 \pm 0.015$. Both are substantially above the prior RETFound-only result of $0.6065 \pm 0.036$. Accuracy follows the same ranking, with RETFound $\times$ Ordinal at $0.556$, DINOv2 $\times$ Ordinal at $0.658$, and DINOv2 $\times$ MLP-K1 at $\mathbf{0.710}$. On per-class recall, DINOv2 backbones consistently improve Grade 3 (Severe) and Grade 4 (PDR) detection, which are the clinically dangerous minorities. The figures~\ref{fig:messidor2_cm} (confusion matrices) and~\ref{fig:reliability_messidor2} (reliability) support the quantitative Tables.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{figs/fig_g_messidor2_cm_sidebyside.pdf}
+    \caption{Messidor-2 confusion matrices (RETFound backbone): Vanilla CapsNet (left) vs Ordinal CapsNet (right), pooled across 5 folds.}
+    \label{fig:messidor2_cm}
+\end{figure}
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{figs/fig_reliability_messidor2.pdf}
+    \caption{Messidor-2 reliability diagrams for the four head$\times$backbone cells.}
+    \label{fig:reliability_messidor2}
+\end{figure}
+
+\subsection{Cross-dataset: diagnosis and post-hoc recovery}
+\label{sec:cross}
+
+Cross-dataset APTOS$\to$Messidor-2 (no Messidor-2 training) collapses to QWK $\approx 0.01$ across every baseline. Forensics on the pooled 5-fold $\times$ 1,744-sample predictions reveal a near-constant-Grade-0 predictor. Of all samples, $99.4\%$ receive the Grade-0 label under $K{-}1$ thresholding at $0.5$, and $99.9\%$ under argmax of the chain-rule 5-class probabilities. The mean predicted head probabilities are $\bar{P}(y{>}0) = 0.087$, $\bar{P}(y{>}1) = 0.088$, $\bar{P}(y{>}2) = 0.066$, $\bar{P}(y{>}3) = 0.037$. Every head fires below $0.5$ on virtually every sample. This is a feature-distribution shift, not a head failure. The binary AUC stays at $0.61$ (above chance), which means the rank order of predictions is preserved and only the threshold is wrong. Two independent replications confirm this is a property of the frozen RETFound feature space and not of our pipeline. Zoellin et al.\ \cite{ref:zoellin} report frozen-RETFound on Messidor with QKappa exactly $0.0$ (linear-probe adaptation) vs.\ QKappa $0.592$ unfrozen, and frozen-DINOv2 QKappa $0.626$. Poyrazer et al.\ \cite{ref:medsiglip_comparison} report a RETFound binary-AUC drop from $0.98$ on APTOS to $0.697$ on external Messidor-2 ($\Delta$AUC $= -0.286$), below even an ImageNet baseline. The frozen-feature cross-dataset collapse from APTOS to Messidor-2 under RETFound-MAE is a stable, reproducible phenomenon in the 2024--2026 literature.
+
+\textbf{Prior-probability shift correction.} For each head, we sort all target-domain samples by severity score $P(y{>}k\,|\,x)$ and assign grades by matching the cumulative distribution to the APTOS \emph{source-domain} prior $\pi$. This is an ordinal-decomposition variant of the Saerens, Latinne and Decaestecker EM-style prior correction \cite{ref:saerens}, which has a long follow-up literature (Lipton et al.'s BBSE \cite{ref:bbse}, Alexandari et al.'s MLLS/BCTS \cite{ref:mlls}, Popordanoska et al.'s LaSCal \cite{ref:lascal}) that we do not claim novelty against. Our contribution is strictly in applying the source-prior variant as a vulnerability probe for frozen ordinal DR heads. Stronger target-prior estimation (BBSE, MLLS) and full unsupervised domain adaptation (DANN, CORAL, SHOT) are named as future work. The calibration uses no target-domain labels. Table~\ref{tab:cross_messidor2} reports three rows for the ordinal head, namely uncalibrated, APTOS-prior corrected, and oracle (Messidor-2 prior) corrected.
+
+\begin{table*}[!t]
+    \caption{APTOS $\to$ Messidor-2 cross-dataset transfer (no target training). SLD-style prior-shift correction \cite{ref:saerens} on the ordinal head uses no target-domain labels; ``Oracle'' uses the true Messidor-2 marginal as an upper bound. Post-correction QWK remains below the clinical-agreement threshold ($\sim 0.60$) and should be read as a vulnerability probe, not a deployment recipe.}
+    \label{tab:cross_messidor2}
+    \centering
+    \footnotesize
+    \begin{tabular}{@{}lccc@{}}
+        \toprule
+        Method                                                         & QWK                 & Bin.\ Sens.\      & Bin.\ AUC        \\
+        \midrule
+        MLP + CE                                                       & $0.0000 \pm 0.0015$ & ---               & $0.579$          \\
+        MLP + MSE                                                      & $0.0037 \pm 0.0184$ & ---               & $0.587$          \\
+        Vanilla CapsNet                                                & $0.0010 \pm 0.0034$ & ---               & $0.570$          \\
+        Ordinal CapsNet (uncalibrated)                                 & $0.0086 \pm 0.0136$ & $17.9\%$          & $\mathbf{0.611}$ \\
+        \midrule
+        Ordinal CapsNet + SLD prior corr.\ (APTOS prior, no labels)    & $\mathbf{0.2216}$   & $\mathbf{51.9\%}$ & $0.625$          \\
+        Ordinal CapsNet + SLD prior corr.\ (oracle prior, upper bound) & $0.2682$            & ---               & ---              \\
+        \bottomrule
+    \end{tabular}
+\end{table*}
+
+SLD-style prior correction lifts the ordinal ranking signal from QWK $0.009$ to $0.222$ and the binary sensitivity from $17.9\%$ to $51.9\%$ at an essentially unchanged AUC of $0.625$. The AUC is almost identical in all three rows, confirming that the rank information is preserved and the intervention is purely a threshold fix. We emphasise that QWK $0.222$ remains in the Landis-Koch \emph{fair} band ($0.21$ to $0.40$) and is far below the $\sim\!0.60$ clinical-agreement threshold. A binary sensitivity of $51.9\%$ would miss nearly half of all referable patients. The intervention is therefore a \emph{diagnostic probe} demonstrating that the cross-dataset collapse is mechanistically a threshold miscalibration rather than a feature-space destruction, not a clinical-deployment recipe. Figure~\ref{fig:messidor2_roc} shows the binary-referable ROC.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{figs/fig_h_messidor2_roc.pdf}
+    \caption{APTOS $\to$ Messidor-2 binary-referable ROC (grade $\geq 2$). The ordinal head's AUC of $0.625$ is well above chance, which is why post-hoc rank calibration can recover such a large fraction of the QWK loss. The rank order is intact and only the threshold is wrong.}
+    \label{fig:messidor2_roc}
+\end{figure}
+
+The takeaway is methodological, not operational. Under frozen RETFound-MAE features, the APTOS $\to$ Messidor-2 transfer failure is driven primarily by a $K{-}1$-threshold miscalibration, namely the $\bar{P}(y{>}0)$ distributional shift from $0.51$ to $0.087$. A source-prior intervention exposes this structure clearly but does not cross the clinical threshold. Genuine cross-dataset deployment requires either a stronger backbone (our within-Messidor-2 DINOv2 $\times$ MLP-K1 already reaches QWK $0.76$, see Section~\ref{sec:messidor-within}), label-shift estimation on the target domain \cite{ref:bbse,ref:mlls}, or full unsupervised domain adaptation. We concur with Ahamed et al.\ \cite{ref:dr_conformal}, who observe that data-augmentation choices interact non-trivially with conformal coverage on DR grading; a similar data-level intervention on the source side is a natural complement to the head-level probe reported here.
+
+\subsection{IDRiD}
+On IDRiD, the Ordinal CapsNet reaches validation QWK $0.7557 \pm 0.045$ but only $0.446 \pm 0.036$ on the 103-image official test. Every baseline drops by roughly $0.30$ QWK from val to test, indicating a dataset-wide distribution shift between the 413-image train set and the held-out test. APTOS $\to$ IDRiD transfer reaches QWK $0.273 \pm 0.020$. We did not run a DINOv2 IDRiD ablation in this draft; given our APTOS and Messidor-2 findings we expect DINOv2 features to perform comparably or better.
+
+\subsection{Training dynamics and compute}
+\label{sec:compute}
+Each frozen 5-fold run completes in roughly 115 seconds on an Apple M-series MacBook (MPS backend). The LoRA 5-fold run takes $\sim\!65$--$85$ min/fold, or $\sim\!16$ h for 3 seeds $\times$ 5 folds on the same laptop. DINOv2 feature extraction for both datasets took roughly 7 minutes on MPS.
+
+\section{Discussion}
+\label{sec:discussion}
+
+On APTOS the backbone contributes $+0.016$ QWK while the head contributes $\leq 0.007$ QWK. On Messidor-2 the gap widens to $+0.15$ vs.\ $\pm 0.02$, an order of magnitude. The practical implication for anyone assembling a frozen-feature DR pipeline is to pick the backbone first and treat the head as a second-order choice. Isztl et al.\ \cite{ref:foundation_benchmark} reach a compatible conclusion from a different angle, reporting that RETFound's 303M-parameter budget is justified only for the hardest ordinal retinal task (DR grading) and that compact general-purpose ViTs Pareto-dominate on every easier retinal task. Specialised retinal pretraining pays off only in narrow settings.
+
+The DINOv2-beats-RETFound result is consistent with the ocular half of Hou et al.\ \cite{ref:dinov2_vs_retfound} and Zoellin et al.\ \cite{ref:zoellin}, replicated here on ordinal DR grading across two datasets and two heads with per-fold paired Wilcoxon significance ($p \leq 0.001$ on APTOS, 5/5 fold wins on Messidor-2). The qualifier is that Zhou et al.'s recent RETFound-DINOv2 \cite{ref:retfound_dinov2} retrains the specialist backbone with the DINOv2 recipe and reports that the retrained specialist then beats generalist DINOv2 on ocular tasks with better data efficiency. What we are reporting is therefore a statement about the 2023 RETFound-MAE \cite{ref:retfound}, not a general indictment of domain-specific retinal pretraining. The mechanism most likely responsible is that the MAE objective on a narrow CFP distribution overfits to the pretraining cohort's camera and population characteristics in a way that the 142M-image DINOv2 contrastive objective does not.
+
+The capsule margin is a discrimination loss, not a calibration loss. ECE is $40$ to $60\%$ worse than the MLP-K1 sigmoid head on APTOS, AURC is within $0.004$ of MLP-K1, and temperature scaling recovers most of the ECE gap (post-TS $0.016$ to $0.025$). The capsule \emph{prediction margin} claimed in prior work as a native UQ signal turns out to be duplicated by a vanilla MLP-K1 top-2 margin. What the capsule head does deliver is a clean QWK/MAE advantage of $+0.007$ and $-0.003$ over MLP-K1 on APTOS ($p=0.002$, 13/15 paired folds on RETFound; $p=0.0001$, 15/15 on DINOv2). The advantage is outside seed noise but small in magnitude, and the sign flips on Messidor-2 $\times$ DINOv2 (MLP-K1 wins by $+0.012$ QWK). The capsule routing-and-squash machinery is a marginal QWK lever with a measurable calibration cost, not a UQ contribution.
+
+Split CP's marginal coverage at $\alpha = 0.10$ holds by construction. Our contribution is the empirical characterisation of its class-conditional failure mode on clinical minority grades (C3/Severe, C4/PDR down to $0.58$ to $0.77$ under LAC/APS/RAPS). Mondrian CCP \cite{ref:ccp} lifts worst-class coverage to $0.82$ to $0.90$ at a $+0.5$ to $1.2$ set-size cost. This is acceptable for clinical triage where Severe/PDR under-coverage is a safety-critical failure, but still below the stricter guarantees of rank-calibrated RC3P \cite{ref:rank_conformal}, which we flag as the natural deployment-grade next step. Ahamed et al.\ \cite{ref:dr_conformal} recently showed that data augmentation choices interact non-trivially with CP coverage on DR grading, a complementary consideration for a production pipeline.
+
+Messidor-2 comes from different cameras, populations, and protocols. Under RETFound-MAE the $P(y{>}0)$ mean shift is $0.51 \to 0.087$ and $99.4\%$ of predictions collapse to Grade 0. Under DINOv2 the within-Messidor-2 QWK of $0.76$ suggests the features are more transferable, though we did not run cross-dataset DINOv2 in this draft (compute cut). The SLD prior correction demonstrates that the collapse is threshold-based and not representational, but the corrected QWK $0.222$ is \emph{fair} at best and we do not claim deployment viability. A principled deployment fix would combine a stronger backbone (DINOv2 or RETFound-DINOv2 \cite{ref:retfound_dinov2}) with target-prior estimation \cite{ref:bbse,ref:mlls} and class-conditional conformal bounds.
+
+A note on benchmark positioning. We do not target the SOTA APTOS QWK of MAFNet ($0.936$) \cite{ref:mafnet} or Dual-SwinOrd ($0.937$) \cite{ref:dualswinord}, which use larger models and different protocols. Our DINOv2 $\times$ MLP-K1 Messidor-2 QWK $0.7643$ is, however, the highest frozen-feature Messidor-2 QWK we have seen reported at a 3-seed $\times$ 5-fold protocol.
+
+\section{Limitations}
+\label{sec:limitations}
+
+We did not run a DINOv2 LoRA variant (compute budget, 16h/seed on MPS). We did not run a DINOv2 IDRiD ablation. We did not compare against rank-calibrated class-conditional conformal (RC3P, \cite{ref:rank_conformal}), evidential ordinal heads \cite{ref:uaorlqap}, or the MAFNet and Dual-SwinOrd families \cite{ref:mafnet,ref:dualswinord} because these require non-trivial training budgets on a single laptop. We flag them as natural follow-ups. Our UQ analysis is single-split for conformal set-size distribution. Marginal coverage is averaged over five splits but per-class coverage is the single-split seed-42 run. The IDRiD val$\to$test gap of $\sim$0.30 QWK is genuine, not an artefact of our protocol, and we did not attempt IDRiD-specific domain adaptation.
+
+\section{Conclusion}
+\label{sec:conclusion}
+On frozen foundation features for ordinal DR grading, the backbone is a larger architectural lever than the head, and the head choice is a smaller second-order effect that comes at a calibration cost. The $K{-}1$ ordinal decomposition is the primary head-level contribution. Capsule routing on top is a marginal QWK improvement that does not improve calibration, and its native confidence signal is duplicated by a plain sigmoid head. Split conformal prediction is the uncertainty layer that ships a usable guarantee. Average coverage holds across every configuration, but per-grade reliability fails on rare grades and needs a class-conditional fix. Cross-dataset transfer is a threshold problem rather than a feature-space failure. A label-free prior-shift correction lifts agreement into the fair band of the standard kappa scale, but not to clinical-screening levels. Negative ablations and full results are in Appendix~\ref{sec:negatives}. Code: \url{https://github.com/vineetkumar-sudo/retfound-capsnet}.
+
+\appendix
+
+\section{Negative-result ablations}
+\label{sec:negatives}
+
+For completeness we report four negative results that did not appear in the main text; all use the RETFound $\times$ Ordinal CapsNet baseline as the reference.
+
+\textbf{Asymmetric ordinal loss} at $\lambda_{\text{up}}=\lambda_{\text{down}}=1.0$ yields QWK $0.8923 \pm 0.0014$ vs.\ the symmetric baseline $0.8932 \pm 0.0004$ ($-0.0009$ QWK, inside combined seed noise). The $K{-}1$ decomposition already produces a safety bias, so direction-aware weighting is redundant.
+
+\textbf{KC Loss} (differentiable QWK surrogate at $\gamma = 0.3$) yields QWK $0.8914 \pm 0.0006$ ($-0.0018$, outside seed noise on the wrong side).
+
+\textbf{Non-uniform squash} \cite{ref:gogulamudi} ($v = s / (1 + \|s\|)$) yields QWK $0.8894 \pm 0.0006$ ($-0.0038$, a clear negative reproduction); Gogulamudi's reported gain on a custom 7-class dataset does not transfer to frozen RETFound + $K{-}1$ binary heads.
+
+\textbf{Routing-agreement variance as UQ} produces an \emph{inverted} accuracy-coverage curve on APTOS. Rejecting the most uncertain samples \emph{reduces} accuracy on the retained set. This is a negative result for one specific capsule-internal UQ signal; the prediction-margin and max-probability selectors remain well-behaved.
+
+\section*{Data Availability and Acknowledgements}
+The APTOS-2019 dataset is available through the Kaggle competition ``APTOS 2019 Blindness Detection'' \cite{ref:aptos}. IDRiD is available from IEEE DataPort \cite{ref:idrid}. The Messidor-2 colour fundus photographs were kindly provided by the Messidor program partners via ADCIS under their research-use licence, and the adjudicated 5-class DR grades used for evaluation were released by Google Research's Medical Brain team \cite{ref:messidor2,ref:abramoff,ref:krause}. RETFound pretrained weights are distributed by the authors of \cite{ref:retfound}; DINOv2 weights are distributed by the authors of \cite{ref:dinov2}. We thank all dataset providers and the authors of the above backbones for releasing pretrained weights.
+
+\begin{thebibliography}{99}
+
+    \bibitem{ref:sabour}
+    S.~Sabour, N.~Frosst, and G.~E.\ Hinton, ``Dynamic routing between capsules,'' in \emph{Advances in Neural Information Processing Systems (NeurIPS)}, vol.\ 30, 2017.
+
+    \bibitem{ref:niu}
+    Z.~Niu, M.~Zhou, L.~Wang, X.~Gao, and G.~Hua, ``Ordinal regression with multiple output CNN for age estimation,'' in \emph{Proc.\ IEEE Conf.\ on Computer Vision and Pattern Recognition (CVPR)}, 2016, pp.\ 4920--4928.
+
+    \bibitem{ref:retfound}
+    Y.~Zhou, M.~A.\ Chia, S.~K.\ Wagner, M.~S.\ Ayhan, D.~J.\ Williamson, R.~R.\ Struyven, T.~Liu, M.~Xu, M.~G.\ Lozano, P.~Woodward-Court \emph{et~al.}, ``A foundation model for generalizable disease detection from retinal images,'' \emph{Nature}, vol.\ 622, no.\ 7981, pp.\ 156--163, 2023.
+
+    \bibitem{ref:dinov2}
+    M.~Oquab, T.~Darcet, T.~Moutakanni, H.~Vo, M.~Szafraniec, V.~Khalidov, P.~Fernandez, D.~Haziza, F.~Massa, A.~El-Nouby \emph{et~al.}, ``DINOv2: Learning robust visual features without supervision,'' \emph{arXiv preprint arXiv:2304.07193}, 2023.
+
+    \bibitem{ref:dinov2_vs_retfound}
+    Q.~Hou, Y.~Zhou, J.~H.~L.\ Goh, K.~Zou, S.~M.~E.\ Yew, S.~Srinivasan, M.~Wang, T.~W.~S.\ Lo, X.~Lei, S.~K.\ Wagner \emph{et~al.}, ``Can a natural image-based foundation model outperform a retina-specific model in detecting ocular and systemic diseases?,'' \emph{Ophthalmology Science}, vol.\ 6, no.\ 1, art.\ 100923, 2026.
+
+    \bibitem{ref:medsiglip_comparison}
+    M.~Poyrazer, H.~Ya\u{g}c{\i}, and R.~Erten, ``How well do frozen foundation models transfer? A calibration-focused benchmark for diabetic retinopathy grading,'' \emph{Frontiers in Medicine}, vol.\ 13, art.\ 1815982, 2026.
+
+    \bibitem{ref:foundation_benchmark}
+    D.~Isztl, T.~Spitznagel, G.~M.\ Somfai, and R.~Santos, ``When do domain-specific foundation models justify their cost? A systematic evaluation across retinal imaging tasks,'' \emph{arXiv preprint arXiv:2511.22001}, 2025.
+
+    \bibitem{ref:lora}
+    E.~J.\ Hu, Y.~Shen, P.~Wallis, Z.~Allen-Zhu, Y.~Li, S.~Wang, L.~Wang, and W.~Chen, ``LoRA: Low-rank adaptation of large language models,'' in \emph{Int.\ Conf.\ on Learning Representations (ICLR)}, 2022.
+
+    \bibitem{ref:stageaware}
+    S.~Kumar, D.~S.\ Aditya, T.~L.\ Kumar, T.~Bikku, S.~Thota, and C.~Kumar, ``Stage-aware diagnosis of diabetic retinopathy via ordinal regression,'' \emph{arXiv preprint arXiv:2511.14398}, 2025.
+
+    \bibitem{ref:aordr}
+    Q.~Yu, W.~Zhou, H.~Liu, Y.~Xu, M.~Wang, Y.~Zhao, H.~Fu, X.~Ye, Y.~Zheng, and Y.~Meng, ``Parameterized diffusion optimization enabled autoregressive ordinal regression for diabetic retinopathy grading,'' in \emph{Int.\ Conf.\ on Medical Image Computing and Computer-Assisted Intervention (MICCAI)}, 2025, pp.\ 450--460.
+
+    \bibitem{ref:uaorlqap}
+    A.~El Bellaj, A.~Benradi, S.~El Youssoufi, T.~El Marzouki, and M.-A.\ Cheddadi, ``Uncertainty-aware ordinal deep learning for cross-dataset diabetic retinopathy grading,'' \emph{arXiv preprint arXiv:2602.10315}, 2026.
+
+    \bibitem{ref:mafnet}
+    L.~Sun, Q.~Peng, X.~Xiao, J.~Liu, Y.~Li, D.~Shu, and J.~Xue, ``MAFNet: A novel adaptive multi-scale model for fine-grained grading of diabetic retinopathy,'' \emph{Scientific Reports}, vol.\ 15, no.\ 1, art.\ 32280, 2025.
+
+    \bibitem{ref:dualswinord}
+    W.~Yu, X.~Si, and J.~Zhong, ``Dual-SwinOrd: A dual-head Swin Transformer with semantic prior injection for ordinal diabetic retinopathy grading,'' \emph{Bioengineering}, vol.\ 13, no.\ 4, art.\ 374, 2026.
+
+    \bibitem{ref:gogulamudi}
+    N.~Gogulamudi, M.~Golla, S.~Kautish, A.~S.\ Almazyad, G.~Xiong, A.~W.\ Mohamed \emph{et~al.}, ``Evaluating the performance of a non-uniform squash function in capsule networks for early diabetic retinopathy detection using fundus image analysis,'' \emph{Results in Engineering}, vol.\ 23, art.\ 102820, 2024.
+
+    \bibitem{ref:gfcapsnet}
+    Y.~Lei, S.~Lin, Z.~Li, Y.~Zhang, and T.~Lai, ``GNN-fused CapsNet with multi-head prediction for diabetic retinopathy grading,'' \emph{Engineering Applications of Artificial Intelligence}, vol.\ 133, art.\ 107994, 2024.
+
+    \bibitem{ref:bodapati}
+    J.~D.\ Bodapati and B.~B.\ Balaji, ``Self-adaptive stacking ensemble approach with attention based deep neural network models for diabetic retinopathy severity prediction,'' \emph{Multimedia Tools and Applications}, vol.\ 83, no.\ 1, pp.\ 1083--1102, 2024.
+
+    \bibitem{ref:dixit}
+    R.~B.\ Dixit and C.~K.\ Jha, ``Fundus image based diabetic retinopathy detection using EfficientNetB3 with squeeze and excitation block,'' \emph{Medical Engineering \& Physics}, vol.\ 140, art.\ 104350, 2025.
+
+    \bibitem{ref:oulhadj}
+    M.~Oulhadj, J.~Riffi, K.~Chaimae, A.~M.\ Mahraz, B.~Ahmed, A.~Yahyaouy, C.~Fouad, A.~Meriem, B.~A.\ Idriss, and H.~Tairi, ``Diabetic retinopathy prediction based on deep learning and deformable registration,'' \emph{Multimedia Tools and Applications}, vol.\ 81, no.\ 20, pp.\ 28709--28727, 2022.
+
+    \bibitem{ref:landiskoch}
+    J.~R.\ Landis and G.~G.\ Koch, ``The measurement of observer agreement for categorical data,'' \emph{Biometrics}, vol.\ 33, no.\ 1, pp.\ 159--174, 1977.
+
+    \bibitem{ref:guo_calibration}
+    C.~Guo, G.~Pleiss, Y.~Sun, and K.~Q.\ Weinberger, ``On calibration of modern neural networks,'' in \emph{Proc.\ Int.\ Conf.\ on Machine Learning (ICML)}, 2017, pp.\ 1321--1330.
+
+    \bibitem{ref:vovk_conformal}
+    V.~Vovk, A.~Gammerman, and G.~Shafer, \emph{Algorithmic Learning in a Random World}.\ \ Springer, 2005.
+
+    \bibitem{ref:shafer_tutorial}
+    G.~Shafer and V.~Vovk, ``A tutorial on conformal prediction,'' \emph{Journal of Machine Learning Research}, vol.\ 9, no.\ 3, 2008.
+
+    \bibitem{ref:sadinle}
+    M.~Sadinle, J.~Lei, and L.~Wasserman, ``Least ambiguous set-valued classifiers with bounded error levels,'' \emph{Journal of the American Statistical Association}, vol.\ 114, no.\ 525, pp.\ 223--234, 2019.
+
+    \bibitem{ref:romano}
+    Y.~Romano, M.~Sesia, and E.~J.\ Cand\`es, ``Classification with valid and adaptive coverage,'' in \emph{Advances in Neural Information Processing Systems (NeurIPS)}, vol.\ 33, 2020, pp.\ 3581--3591.
+
+    \bibitem{ref:raps}
+    A.~N.\ Angelopoulos, S.~Bates, J.~Malik, and M.~I.\ Jordan, ``Uncertainty sets for image classifiers using conformal prediction,'' in \emph{Int.\ Conf.\ on Learning Representations (ICLR)}, 2021.\ \ Also \emph{arXiv:2009.14193}, 2020.
+
+    \bibitem{ref:mondrian}
+    V.~Vovk, ``Conditional validity of inductive conformal predictors,'' in \emph{Asian Conf.\ on Machine Learning (ACML)}, 2012, pp.\ 475--490.
+
+    \bibitem{ref:ccp}
+    M.~Sadinle, J.~Lei, and L.~Wasserman, ``Least ambiguous set-valued classifiers with bounded error levels (Mondrian / CCP per-class quantile variant),'' \emph{Journal of the American Statistical Association}, vol.\ 114, no.\ 525, pp.\ 223--234, 2019.
+
+    \bibitem{ref:rank_conformal}
+    Y.~Shi, S.~Ghosh, T.~Belkhouja, J.~R.\ Doppa, and Y.~Yan, ``Conformal prediction for class-wise coverage via augmented label rank calibration (RC3P),'' in \emph{Advances in Neural Information Processing Systems (NeurIPS)}, vol.\ 37, 2024, pp.\ 132{,}133--132{,}178.
+
+    \bibitem{ref:dr_conformal}
+    R.~Ahamed, A.~Amireskandari, J.~Palko, C.~Laxson, B.~Bhattarai, and P.~Gyawali, ``Effect of data augmentation on conformal prediction for diabetic retinopathy,'' in \emph{MICCAI Workshop on Data Engineering in Medical Imaging}, 2025, pp.\ 223--232.\ \ Also \emph{arXiv:2508.14266}.
+
+    \bibitem{ref:saerens}
+    M.~Saerens, P.~Latinne, and C.~Decaestecker, ``Adjusting the outputs of a classifier to new a priori probabilities: a simple procedure,'' \emph{Neural Computation}, vol.\ 14, no.\ 1, pp.\ 21--41, 2002.
+
+    \bibitem{ref:bbse}
+    Z.~Lipton, Y.-X.\ Wang, and A.~Smola, ``Detecting and correcting for label shift with black box predictors (BBSE),'' in \emph{Proc.\ Int.\ Conf.\ on Machine Learning (ICML)}, 2018, pp.\ 3122--3130.
+
+    \bibitem{ref:mlls}
+    A.~Alexandari, A.~Kundaje, and A.~Shrikumar, ``Maximum likelihood with bias-corrected calibration is hard-to-beat at label shift adaptation (MLLS / BCTS),'' in \emph{Proc.\ Int.\ Conf.\ on Machine Learning (ICML)}, 2020, pp.\ 222--232.
+
+    \bibitem{ref:lascal}
+    T.~Popordanoska, G.~Radevski, T.~Tuytelaars, and M.~B.\ Blaschko, ``LaSCal: Label-shift calibration without target labels,'' in \emph{Advances in Neural Information Processing Systems (NeurIPS)}, vol.\ 37, 2024, pp.\ 65{,}386--65{,}414.
+
+    \bibitem{ref:zoellin}
+    J.~R.~T.\ Zoellin, C.~Merk, M.~Buob, S.~Giesser, A.~Saad, T.~Spitznagel, F.~Turgut, M.~Becker, and G.~Somfai, ``Advancing diabetic retinopathy staging with DINOv2: Novel approaches in transformer architecture and performance benchmarking,'' \emph{Investigative Ophthalmology \& Visual Science (ARVO Imaging in the Eye Conference)}, vol.\ 65, no.\ 9, art.\ PB0059, 2024.
+
+    \bibitem{ref:retfound_dinov2}
+    Y.~Zhou, P.~Nderitu, J.~H.~L.\ Goh, J.~Engelmann, S.~K.\ Wagner, A.~Ran, H.~Jiang, L.~Ju, K.~Zou, S.~Srinivasan \emph{et~al.}, ``Generalist versus specialist vision foundation models for ocular disease and oculomics,'' \emph{arXiv preprint arXiv:2509.03421}, 2025.
+
+    \bibitem{ref:aptos}
+    APTOS, ``APTOS 2019 blindness detection,'' Kaggle competition, 2019.\ \ [Online].\ \ Available: \url{https://www.kaggle.com/c/aptos2019-blindness-detection}
+
+    \bibitem{ref:idrid}
+    P.~Porwal, S.~Pachade, R.~Kamble, M.~Kokare, G.~Deshmukh, V.~Sahasrabuddhe, and F.~Meriaudeau, ``Indian diabetic retinopathy image dataset (IDRiD): a database for diabetic retinopathy screening research,'' \emph{Data}, vol.\ 3, no.\ 3, art.\ 25, 2018.
+
+    \bibitem{ref:messidor2}
+    E.~Decenci\`ere, X.~Zhang, G.~Cazuguel, B.~Lay, B.~Cochener, C.~Trone, P.~Gain, J.-R.\ Ord\'o\~nez-Varela, P.~Massin, A.~Erginay \emph{et~al.}, ``Feedback on a publicly distributed image database: the Messidor database,'' \emph{Image Analysis \& Stereology}, vol.\ 33, no.\ 3, pp.\ 231--234, 2014.
+
+    \bibitem{ref:abramoff}
+    M.~D.\ Abr\`amoff, J.~C.\ Folk, D.~P.\ Han, J.~D.\ Walker, D.~F.\ Williams, S.~R.\ Russell, P.~Massin, B.~Cochener, P.~Gain, L.~Tang \emph{et~al.}, ``Automated analysis of retinal images for detection of referable diabetic retinopathy,'' \emph{JAMA Ophthalmology}, vol.\ 131, no.\ 3, pp.\ 351--357, 2013.
+
+    \bibitem{ref:krause}
+    J.~Krause, V.~Gulshan, E.~Rahimy, P.~Karth, K.~Widner, G.~S.\ Corrado, L.~Peng, and D.~R.\ Webster, ``Grader variability and the importance of reference standards for evaluating machine learning models for diabetic retinopathy,'' \emph{Ophthalmology}, vol.\ 125, no.\ 8, pp.\ 1264--1272, 2018.
+
+\end{thebibliography}
+
+\end{document}

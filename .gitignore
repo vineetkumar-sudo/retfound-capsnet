@@ -9,7 +9,7 @@
 # Paper drafts and working docs stay local; only scripts/fig_architecture.tex is tracked.
 /data/
 /experiments/
-/paper/
+/paper/ref_papers
 wandb/
 
 # Local tooling state
@@ -31,6 +31,8 @@ test.synctex.gz
 *.fls
 *.out
 *.synctex.gz
+*.bbl
+paper/submission/*.log
 
 # Note on results/:
 #   The blanket `/results/` rule was removed so that lightweight artifacts
