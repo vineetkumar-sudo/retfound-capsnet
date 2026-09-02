@@ -22,33 +22,33 @@
       ]
     },
     "MLP + CE": {
-      "qwk_mean_across_seeds": 0.8782542452366354,
-      "qwk_std_across_seeds": 0.002193959507491395,
-      "accuracy_mean_across_seeds": 0.8056651492159839,
-      "accuracy_std_across_seeds": 0.001222361757571499,
-      "macro_f1_mean_across_seeds": 0.6271189054534384,
-      "macro_f1_std_across_seeds": 0.00210404879104611,
-      "mae_mean_across_seeds": 0.25897824987354573,
-      "mae_std_across_seeds": 0.001364768595167649,
+      "qwk_mean_across_seeds": 0.8754871468797233,
+      "qwk_std_across_seeds": 0.0014033760179161482,
+      "accuracy_mean_across_seeds": 0.809104704097117,
+      "accuracy_std_across_seeds": 0.002117192669343022,
+      "macro_f1_mean_across_seeds": 0.6324605003446678,
+      "macro_f1_std_across_seeds": 0.006709246067618982,
+      "mae_mean_across_seeds": 0.25837126960040463,
+      "mae_std_across_seeds": 0.0020182030696267094,
       "per_seed_qwk": [
-        0.8752372726208192,
-        0.8791353603168564,
-        0.8803901027722304
+        0.8738613344669067,
+        0.8753142808658687,
+        0.8772858253063944
       ]
     },
     "MLP + MSE (Ordinal)": {
-      "qwk_mean_across_seeds": 0.8831494028546331,
-      "qwk_std_across_seeds": 0.0010640969165125853,
-      "accuracy_mean_across_seeds": 0.7444613050075871,
-      "accuracy_std_across_seeds": 0.0016249244718471996,
-      "macro_f1_mean_across_seeds": 0.5491381697973979,
-      "macro_f1_std_across_seeds": 0.006908887857855949,
-      "mae_mean_across_seeds": 0.29357612544258976,
-      "mae_std_across_seeds": 0.001826552360674536,
+      "qwk_mean_across_seeds": 0.8813259098465372,
+      "qwk_std_across_seeds": 0.0011944721830040638,
+      "accuracy_mean_across_seeds": 0.7437531613555892,
+      "accuracy_std_across_seeds": 0.011326684877918833,
+      "macro_f1_mean_across_seeds": 0.5432791232317523,
+      "macro_f1_std_across_seeds": 0.005074994216913618,
+      "mae_mean_across_seeds": 0.294790085988872,
+      "mae_std_across_seeds": 0.010630341041866985,
       "per_seed_qwk": [
-        0.8818079362270635,
-        0.8844107323391939,
-        0.8832295399976419
+        0.8800801825147715,
+        0.8809607106322732,
+        0.8829368363925673
       ]
     },
     "Linear Probe + Weighted CE": {
@@ -67,18 +67,18 @@
       ]
     },
     "MLP + Weighted CE": {
-      "qwk_mean_across_seeds": 0.8607145505940919,
-      "qwk_std_across_seeds": 0.001438340192684849,
-      "accuracy_mean_across_seeds": 0.7679312089023774,
-      "accuracy_std_across_seeds": 0.0022209912392615314,
-      "macro_f1_mean_across_seeds": 0.6156358927649385,
-      "macro_f1_std_across_seeds": 0.004625597262234128,
-      "mae_mean_across_seeds": 0.3074355083459787,
-      "mae_std_across_seeds": 0.002160258624589059,
+      "qwk_mean_across_seeds": 0.8638400050334014,
+      "qwk_std_across_seeds": 0.0020567093494676366,
+      "accuracy_mean_across_seeds": 0.7795649974709157,
+      "accuracy_std_across_seeds": 0.004794333074789179,
+      "macro_f1_mean_across_seeds": 0.6262019240667024,
+      "macro_f1_std_across_seeds": 0.00737941271548427,
+      "mae_mean_across_seeds": 0.2911482043500253,
+      "mae_std_across_seeds": 0.005813154435430926,
       "per_seed_qwk": [
-        0.862509263965023,
-        0.8606463420871744,
-        0.8589880457300781
+        0.8632758887043928,
+        0.8665931782494141,
+        0.8616509481463975
       ]
     }
   }

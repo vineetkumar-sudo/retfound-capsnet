@@ -1,7 +1,7 @@
 {
   "model": "capsnet_vanilla",
   "n_folds": 5,
-  "elapsed_sec": 11.442585229873657,
+  "elapsed_sec": 37.361793756484985,
   "val_qwk_mean": 0.7484486729251949,
   "val_qwk_std": 0.04441491085348183,
   "val_accuracy_mean": 0.5834557743167793,
