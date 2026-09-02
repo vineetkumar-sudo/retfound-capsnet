@@ -1,5 +1,9 @@
-%% Rewritten draft: the paper's thesis is now backbone + UQ rather than
-%% capsules-as-hero. Negatives moved to the appendix.
+%% LaTeX source for the SUBMITTED manuscript
+%% "Trustworthy AI for Diabetic Retinopathy Grading: Auditing Foundation
+%%  Models, Capsule Networks, and Conformal Uncertainty".
+%% Content is a verbatim transcription of the submitted Word document
+%% (Trustworthy AI for Diabetic Retinopathy Grading.docx); do not silently
+%% edit wording here -- revisions should be deliberate and tracked.
 
 \documentclass[journal]{IEEEtran}
 
@@ -18,17 +22,26 @@
 
 \begin{document}
 
-\title{Frozen Foundation Features for Ordinal\\
-    Diabetic Retinopathy Grading:\\
-    A Head\,$\times$\,Backbone Analysis with\\
-    Calibrated Conformal Uncertainty}
+\title{Trustworthy AI for Diabetic Retinopathy Grading:
+    Auditing Foundation Models, Capsule Networks,
+    and Conformal Uncertainty}
 
-\author{Vineet Kumar%
-    \thanks{Vineet Kumar is with the Deep Learning Research Group.
-        Contact: vineet.kumar@polymathai.co. Draft, April 2026.}}
+\author{%
+    V N V L S Swathi\textsuperscript{1}, K Ramya Madhavi\textsuperscript{2}, L Smitha\textsuperscript{3},\\
+    Ch Naga Priyanka\textsuperscript{4}, *Mallareddy Adudhodla\textsuperscript{5}, D Pramodh Krishna\textsuperscript{6}\\[4pt]
+    {\itshape\footnotesize
+        \textsuperscript{1}Senior Assistant Professor, Department of CSE, CVR College of Engineering, Hyderabad, Telangana, India.\\
+        \textsuperscript{2}Assistant Professor, Department of IT, MVSR Engineering College, Hyderabad, Telangana, India.\\
+        \textsuperscript{3}Associate Professor, Department of IT, G. Narayanamma Institute of Technology \& Science, Hyderabad, Telangana, India.\\
+        \textsuperscript{4}Assistant Professor, Department of CSE (Data Science), Vardhaman College of Engineering, Hyderabad, Telangana, India.\\
+        \textsuperscript{*}\textsuperscript{5} Professor, Department of IT, CVR College of Engineering, Hyderabad, Telangana, India.\\
+        \textsuperscript{6}Assistant Professor, Department of CSE, Koneru Lakshmaiah Education foundation, K L University, Vaddeswaram, Andhra Pradesh, India.\\
+        \textsuperscript{1}swathivllr@gmail.com, \textsuperscript{2}ramyamadhavi.k@gmail.com, \textsuperscript{3}smitha2005sri@gnits.ac.in,\\
+        \textsuperscript{4}priyanka.chadalavada89@gmail.com,\textsuperscript{*5}mallareddyadudhodla@gmail.com, \textsuperscript{6}pramodhkrishna.d@gmail.com}%
+}
 
-\markboth{Manuscript Draft --- April 2026}%
-{Kumar: Frozen Foundation Features for Ordinal DR Grading}
+\markboth{Trustworthy AI for Diabetic Retinopathy Grading}%
+{Swathi \MakeLowercase{\textit{et al.}}: Trustworthy AI for Diabetic Retinopathy Grading}
 
 \maketitle
 
@@ -42,7 +55,7 @@
 
 \section{Introduction}
 
-\IEEEPARstart{D}{iabetic} retinopathy (DR) is a leading cause of preventable blindness in working-age adults, and automating severity grading from colour fundus photographs (Figure~\ref{fig:grades}) is one of the most-benchmarked tasks in medical AI. Recent progress on it has come from two largely independent directions. One is stronger frozen backbones, including retinal foundation models like RETFound \cite{ref:retfound} and general-purpose vision transformers like DINOv2 \cite{ref:dinov2}. The other is richer prediction heads such as ordinal-regression decompositions \cite{ref:niu} and capsule networks \cite{ref:sabour}. It remains unclear which of those two levers actually moves the needle, and whether the resulting confidences are trustworthy enough to act on.
+\IEEEPARstart{D}{iabetic} retinopathy (DR) is a leading cause of preventable blindness in working-age adults, and automating severity grading from colour fundus photographs (Fig.~\ref{fig:grades}) is one of the most-benchmarked tasks in medical AI. Recent progress on it has come from two largely independent directions. One is stronger frozen backbones, including retinal foundation models like RETFound \cite{ref:retfound} and general-purpose vision transformers like DINOv2 \cite{ref:dinov2}. The other is richer prediction heads such as ordinal-regression decompositions \cite{ref:niu} and capsule networks \cite{ref:sabour}. It remains unclear which of those two levers actually moves the needle, and whether the resulting confidences are trustworthy enough to act on.
 
 \begin{figure*}[!t]
     \centering
@@ -63,11 +76,11 @@ As a separate cross-dataset diagnostic, the APTOS-trained frozen head collapses 
 
 \noindent\textbf{Contributions.}
 \begin{itemize}
-    \item \textbf{Decomposing backbone vs head effects.} A fully-crossed $2{\times}2$ head$\times$backbone ablation (capsule and MLP+$K{-}1$ heads, RETFound and DINOv2 features) on APTOS and Messidor-2 at $3$ seeds $\times$ $5$ folds, with paired Wilcoxon tests on per-fold QWK.
-    \item \textbf{Auditing native capsule confidence.} Calibration of the chain-rule probability across all nine head$\times$backbone$\times$dataset cells with ECE, MCE, Brier, NLL, AURC, and risk-at-coverage, plus a temperature-scaling post-hoc baseline.
-    \item \textbf{Conformal coverage under class imbalance.} A four-score conformal comparison (LAC, APS, RAPS, and a Mondrian per-class quantile), reporting marginal and worst-class coverage with set-size cost.
-    \item \textbf{A cross-dataset diagnostic for APTOS$\to$Messidor-2.} Frozen-head transfer evaluated under a label-free prior-shift correction, framed as a threshold-miscalibration diagnostic rather than a domain-adaptation contribution.
-    \item \textbf{Reproducibility.} Code, configs, cached features, per-fold predictions, and figure/table regeneration scripts at \url{https://github.com/vineetkumar-sudo/retfound-capsnet}.
+    \item \emph{Decomposing backbone vs head effects.} A fully-crossed $2{\times}2$ head$\times$backbone ablation (capsule and MLP+$K{-}1$ heads, RETFound and DINOv2 features) on APTOS and Messidor-2 at $3$ seeds $\times$ $5$ folds, with paired Wilcoxon tests on per-fold QWK.
+    \item \emph{Auditing native capsule confidence.} Calibration of the chain-rule probability across all nine head$\times$backbone$\times$dataset cells with ECE, MCE, Brier, NLL, AURC, and risk-at-coverage, plus a temperature-scaling post-hoc baseline.
+    \item \emph{Conformal coverage under class imbalance.} A four-score conformal comparison (LAC, APS, RAPS, and a Mondrian per-class quantile), reporting marginal and worst-class coverage with set-size cost.
+    \item \emph{A cross-dataset diagnostic for APTOS$\to$Messidor-2.} Frozen-head transfer evaluated under a label-free prior-shift correction, framed as a threshold-miscalibration diagnostic rather than a domain-adaptation contribution.
+    \item \emph{Reproducibility.} Code, configs, cached features, per-fold predictions, and figure/table regeneration scripts at \url{https://github.com/vineetkumar-sudo/retfound-capsnet}.
 \end{itemize}
 
 The remainder of this paper is organized as follows. Section~\ref{sec:related} reviews related work. Section~\ref{sec:method} describes the heads, backbones, and UQ layers, and Section~\ref{sec:setup} covers the datasets and protocol. Section~\ref{sec:results} reports the experiments, followed by a discussion in Section~\ref{sec:discussion}, limitations in Section~\ref{sec:limitations}, and conclusions in Section~\ref{sec:conclusion}. Negative ablations are collected in Appendix~\ref{sec:negatives}.
@@ -97,11 +110,11 @@ Bodapati and Balaji \cite{ref:bodapati} use a dual-attention VGG16 + Xception st
 We evaluate two frozen ViT-L-scale backbones at 224$\times$224 input resolution. RETFound ViT-L/16 \cite{ref:retfound} is pretrained on retinal CFPs. DINOv2 ViT-L/14 \cite{ref:dinov2} is pretrained on 142M natural images with no retinal specialisation. Both produce a 1024-dim CLS token; the preprocessing pipeline (Resize-256 bicubic $\to$ CenterCrop-224 $\to$ ImageNet normalise) is identical for both backbones, so the only changing variable is the backbone weights. A LoRA rank-8 variant of RETFound \cite{ref:lora} is added as a fine-tuning counterpoint (see Section~\ref{sec:lora}).
 
 \subsection{Ordinal heads on frozen features}
-We compare two head architectures, both using Niu's $K{-}1$ binary decomposition and an identical Sabour-style margin loss with $m^+ = 0.9$, $m^- = 0.1$, $\lambda = 0.5$ \cite{ref:sabour}. Head A (\textit{Ordinal CapsNet}) is a PrimaryCaps layer (32 capsules of dim 8) followed by four independent DigitCaps heads (2 capsules of dim 16, 3 routing iterations per head), one per ordinal threshold. Head B (\textit{MLP + $K{-}1$ sigmoid}) is a plain MLP ($1024 \to 256 \to 256 \to \mathbb{R}^{K-1}$) with four independent sigmoid output heads. Head B is a direct no-capsule comparator with no routing and no capsule nonlinearity, using the same loss and the same decomposition. Trainable parameter counts are $\sim\!295$K (CapsNet) and $\sim\!329$K (MLP-K1) respectively, capacity-matched within $10\%$ so the ablation does not confound capacity with architecture.
+We compare two head architectures, both using Niu's $K{-}1$ binary decomposition and an identical Sabour-style margin loss with $m^+ = 0.9$, $m^- = 0.1$, $\lambda = 0.5$ \cite{ref:sabour}. Head A (\textit{Ordinal CapsNet}) is a PrimaryCaps layer (32 capsules of dim 8) followed by four independent DigitCaps heads (2 capsules of dim 16, 3 routing iterations per head), one per ordinal threshold. Head B (\textit{MLP + $K{-}1$ sigmoid}) is a plain MLP ($1024 \to 256 \to 256 \to \mathbb{R}^{K-1}$) with four independent sigmoid output heads. Head B is a direct no-capsule comparator with no routing and no capsule nonlinearity, using the same loss and the same decomposition. Trainable parameter counts are $\approx$295K (CapsNet) and $\approx$329K (MLP-K1) respectively, capacity-matched within $10\%$ so the ablation does not confound capacity with architecture.
 
 \subsection{LoRA variant}
 \label{sec:lora}
-In the LoRA configuration we unfreeze nothing in RETFound but inject rank-8 adapters into the fused \texttt{attn.qkv} projection of every ViT-L block (24 blocks). Scaling $\alpha = 16$, dropout $0.05$. The optimiser uses two groups, with LoRA learning rate $10^{-4}$ and head learning rate $10^{-3}$. Total trainable count is $\sim\!1.08$M ($0.35\%$ of the backbone's 307M).
+In the LoRA configuration we unfreeze nothing in RETFound but inject rank-8 adapters into the fused \texttt{attn.qkv} projection of every ViT-L block (24 blocks). Scaling $\alpha = 16$, dropout $0.05$. The optimiser uses two groups, with LoRA learning rate $10^{-4}$ and head learning rate $10^{-3}$. Total trainable count is $\approx$1.08M ($0.35\%$ of the backbone's 307M).
 
 \subsection{Decoding and chain-rule probability}
 At inference, each head produces a probability $\hat{p}_k = P(y{>}k\,|\,x)$ from the length of its positive capsule (CapsNet) or its sigmoid output (MLP-K1). The predicted grade is
@@ -174,7 +187,7 @@ Table~\ref{tab:aptos} reports the head-level ablation on frozen RETFound feature
 
 The $K{-}1$ ordinal decomposition is the larger head-level lever; capsule routing is a smaller second-order improvement on top of it. Moving from plain MLP+CE to MLP+$K{-}1$ lifts QWK by $+0.0083$. Adding capsule routing on top of MLP+$K{-}1$, which gives our Ordinal CapsNet head, lifts QWK by a further $+0.0066$. Both contributions are outside seed noise (across-seed std $\leq 0.0004$ on each row).
 
-\textit{What fine-tuning buys.} For comparison, fine-tuning the RETFound backbone with LoRA r=8 (1.08 M trainable parameters injected into the attention projections, $\sim$16 h per seed on MPS) and keeping the same Ordinal CapsNet head reaches QWK $0.9127 \pm 0.0008$ on the same 3-seed 5-fold protocol, an additional $+0.020$ QWK over the same head on frozen RETFound features. The remainder of this paper analyses frozen-feature configurations on consumer hardware; we report LoRA only as a compute-tier anchor.
+\textit{What fine-tuning buys.} For comparison, fine-tuning the RETFound backbone with LoRA r=8 (1.08M trainable parameters injected into the attention projections, $\approx$16h per seed on MPS) and keeping the same Ordinal CapsNet head reaches QWK $0.9127 \pm 0.0008$ on the same 3-seed 5-fold protocol, an additional $+0.020$ QWK over the same head on frozen RETFound features. The remainder of this paper analyses frozen-feature configurations on consumer hardware; we report LoRA only as a compute-tier anchor.
 
 \subsection{Head\,$\times$\,Backbone 2$\times$2 ablation}
 \label{sec:head-backbone}
@@ -188,9 +201,9 @@ Table~\ref{tab:head_backbone} is the fully crossed ablation on APTOS and Messido
     \footnotesize
     \begin{tabular}{@{}lcccccc@{}}
         \toprule
-                        & \multicolumn{3}{c}{\textbf{APTOS-2019 QWK}} & \multicolumn{3}{c}{\textbf{Messidor-2 within QWK}}                                                                                     \\
+        \textbf{Head}   & \multicolumn{3}{c}{\textbf{APTOS-2019 QWK}} & \multicolumn{3}{c}{\textbf{Messidor-2 within QWK}}                                                                                     \\
         \cmidrule(r){2-4}\cmidrule(l){5-7}
-        Head            & RETFound                                    & DINOv2                                             & $\Delta$ backbone & RETFound            & DINOv2              & $\Delta$ backbone \\
+                        & RETFound                                    & DINOv2                                             & $\Delta$ backbone & RETFound            & DINOv2              & $\Delta$ backbone \\
         \midrule
         Ordinal CapsNet & $0.8932 \pm 0.0004$                         & $0.9089 \pm 0.0021$                                & $+0.0157$         & $0.6065 \pm 0.0363$ & $0.7525 \pm 0.0222$ & $+0.1460$         \\
         MLP + K-1 sig   & $0.8866 \pm 0.0004$                         & $0.9034 \pm 0.0002$                                & $+0.0168$         & $0.5852 \pm 0.0405$ & $0.7643 \pm 0.0148$ & $+0.1791$         \\
@@ -204,20 +217,20 @@ DINOv2 beats RETFound at frozen-feature DR grading cleanly on both datasets and 
 \subsection{Calibration analysis}
 \label{sec:calibration}
 
-Table~\ref{tab:calibration} summarises the calibration and selective-prediction metrics across all nine configurations. Figure~\ref{fig:reliability_aptos} shows reliability diagrams for the APTOS head$\times$backbone $2{\times}2$.
+Table~\ref{tab:calibration} summarises the calibration and selective-prediction metrics across all nine configurations. Fig.~\ref{fig:reliability_aptos} shows reliability diagrams for the APTOS head$\times$backbone $2{\times}2$.
 
 \begin{table*}[!t]
     \caption{Calibration and selective prediction across the head$\times$backbone grid. ECE / MCE use 10 equal-mass bins on the per-sample confidence $P(y=\hat{y})$. AURC (max-p) uses max chain-rule probability as the selective-prediction signal; AURC (margin) uses the top-2 prediction margin. Lower is better for all four UQ columns. Renorm is the fraction of samples where the chain-rule probability required renormalisation (i.e., the heads were non-monotonic in the raw chain-rule product). \textbf{Bold} = best per column among frozen-feature rows; the LoRA row is reported as a fine-tuning compute-tier anchor.}
     \label{tab:calibration}
     \centering
     \footnotesize
-    \begin{tabular}{@{}llccccccc@{}}
+    \begin{tabular}{@{}llcccccc@{}}
         \toprule
         Dataset    & Model                             & Acc            & ECE            & MCE            & AURC (max-p)   & AURC (margin)  & Renorm \\
         \midrule
         APTOS      & RETFound $\times$ Ordinal CapsNet & 0.793          & 0.151          & 0.224          & 0.0599         & 0.0609         & 100\%  \\
         APTOS      & RETFound $\times$ MLP-K1          & 0.796          & \textbf{0.091} & \textbf{0.174} & 0.0624         & 0.0604         & 86\%   \\
-        APTOS      & DINOv2 $\times$ Ordinal CapsNet   & \textbf{0.809} & 0.115          & 0.167          & \textbf{0.049} & \textbf{0.048} & 100\%  \\
+        APTOS      & DINOv2 $\times$ Ordinal CapsNet   & 0.809          & 0.115          & 0.167          & \textbf{0.049} & \textbf{0.048} & 100\%  \\
         APTOS      & DINOv2 $\times$ MLP-K1            & 0.805          & 0.102          & 0.173          & 0.051          & 0.049          & 100\%  \\
         APTOS      & RETFound $\times$ Ordinal + LoRA  & 0.824          & 0.141          & 0.194          & 0.050          & 0.050          & 100\%  \\
         \midrule
@@ -254,7 +267,7 @@ The capsule \emph{prediction margin} is also a valid selective-prediction signal
     \label{tab:calibration_ts}
     \centering
     \footnotesize
-    \begin{tabular}{@{}llcccccc@{}}
+    \begin{tabular}{@{}llccccc@{}}
         \toprule
         Dataset & Model                    & T    & ECE$^{\text{pre}}$ & ECE$^{\text{post}}$ & Brier$^{\text{post}}$ & NLL$^{\text{post}}$ \\
         \midrule
@@ -304,7 +317,7 @@ Every configuration hits the $90\%$ coverage target (observed range $89.4\%$ to 
 
 \textbf{A note on non-contiguous sets.} The LAC, APS, and RAPS scores we use treat the five DR grades as an unordered label set, so their prediction sets can in principle be non-contiguous under the ordinal scale. For example, $\{0, 3\}$ is a valid prediction set even though it violates the ordinal semantics. Measured across our pooled 5-seed single-split predictions at $\alpha = 0.10$, the non-contiguous-set rate is $2.3\%$ (LAC), $8.6\%$ (APS), and $8.7\%$ (RAPS) on APTOS and $2.6\%$, $7.7\%$, $7.8\%$ on Messidor-2. The rates are concentrated on low-confidence samples near adjacent-grade decision boundaries. An ordinal-aware conformal construction that enforces contiguous intervals would not affect marginal coverage but would sharpen the prediction-set interpretation for clinical triage. We flag it as an open item alongside RC3P.
 
-\textbf{Class-conditional coverage and a Mondrian fix.} The interesting empirical finding is that the marginal guarantee does not transfer to per-class coverage. At $\alpha = 0.10$ with APS, worst-class coverage drops to $0.583$ (DINOv2 $\times$ MLP-K1, C4/PDR on Messidor-2), $0.667$ (DINOv2 $\times$ Ordinal on Messidor-2, C2/Moderate), and $0.78$--$0.84$ on APTOS minority classes (C1/Mild, C4/PDR). For a clinical-safety-sensitive task like DR grading, a $\sim\!60\%$ coverage on Severe/PDR patients is a first-order problem, not a footnote. Substituting a Mondrian \cite{ref:mondrian,ref:ccp} per-class quantile lifts worst-class coverage to $0.82$--$0.90$ across every configuration, at the cost of $+0.5$ set-size points on APTOS and $+1.0$--$1.2$ on Messidor-2 (Table~\ref{tab:ccp}). On the hardest cell (DINOv2 $\times$ MLP-K1 on Messidor-2) the worst-class jump is $+0.26$ ($0.58 \to 0.84$); the efficiency cost is a mean-set-size increase from $1.97$ to $2.38$. CCP is the closest-to-RC3P \cite{ref:rank_conformal} fix that does not require new training and is achievable under our MPS budget; for a clinical deployment, RC3P and related class-conditional extensions are the natural next step.
+\textbf{Class-conditional coverage and a Mondrian fix.} The interesting empirical finding is that the marginal guarantee does not transfer to per-class coverage. At $\alpha = 0.10$ with APS, worst-class coverage drops to $0.583$ (DINOv2 $\times$ MLP-K1, C4/PDR on Messidor-2), $0.667$ (DINOv2 $\times$ Ordinal on Messidor-2, C2/Moderate), and $0.78$--$0.84$ on APTOS minority classes (C1/Mild, C4/PDR). For a clinical-safety-sensitive task like DR grading, a $\approx$60\% coverage on Severe/PDR patients is a first-order problem, not a footnote. Substituting a Mondrian \cite{ref:mondrian,ref:ccp} per-class quantile lifts worst-class coverage to $0.82$--$0.90$ across every configuration, at the cost of $+0.5$ set-size points on APTOS and $+1.0$--$1.2$ on Messidor-2 (Table~\ref{tab:ccp}). On the hardest cell (DINOv2 $\times$ MLP-K1 on Messidor-2) the worst-class jump is $+0.26$ ($0.58 \to 0.84$); the efficiency cost is a mean-set-size increase from $1.97$ to $2.38$. CCP is the closest-to-RC3P \cite{ref:rank_conformal} fix that does not require new training and is achievable under our MPS budget; for a clinical deployment, RC3P and related class-conditional extensions are the natural next step.
 
 \begin{table}[!t]
     \caption{Mondrian CCP vs.\ APS, $\alpha=0.10$, single-split seed 42. ``Worst'' is min per-class coverage; smaller gap to target (0.90) is better. CCP achieves class-conditional coverage at a set-size cost.}
@@ -333,7 +346,7 @@ Every configuration hits the $90\%$ coverage target (observed range $89.4\%$ to 
 \subsection{Within-Messidor-2}
 \label{sec:messidor-within}
 
-Within Messidor-2 (Table~\ref{tab:head_backbone}, right half), the Ordinal CapsNet + DINOv2 combination reaches QWK $0.7525 \pm 0.022$, and the MLP-K1 + DINOv2 combination reaches $0.7643 \pm 0.015$. Both are substantially above the prior RETFound-only result of $0.6065 \pm 0.036$. Accuracy follows the same ranking, with RETFound $\times$ Ordinal at $0.556$, DINOv2 $\times$ Ordinal at $0.658$, and DINOv2 $\times$ MLP-K1 at $\mathbf{0.710}$. On per-class recall, DINOv2 backbones consistently improve Grade 3 (Severe) and Grade 4 (PDR) detection, which are the clinically dangerous minorities. The figures~\ref{fig:messidor2_cm} (confusion matrices) and~\ref{fig:reliability_messidor2} (reliability) support the quantitative Tables.
+Within Messidor-2 (Table~\ref{tab:head_backbone}, right half), the Ordinal CapsNet + DINOv2 combination reaches QWK $0.7525 \pm 0.022$, and the MLP-K1 + DINOv2 combination reaches $0.7643 \pm 0.015$. Both are substantially above the prior RETFound-only result of $0.6065 \pm 0.036$. Accuracy follows the same ranking, with RETFound $\times$ Ordinal at $0.556$, DINOv2 $\times$ Ordinal at $0.658$, and DINOv2 $\times$ MLP-K1 at $\mathbf{0.710}$. On per-class recall, DINOv2 backbones consistently improve Grade 3 (Severe) and Grade 4 (PDR) detection, which are the clinically dangerous minorities. The figures Fig.~\ref{fig:messidor2_cm} (confusion matrices) and Fig.~\ref{fig:reliability_messidor2} (reliability) support the quantitative Tables.
 
 \begin{figure}[!t]
     \centering
@@ -357,7 +370,7 @@ Cross-dataset APTOS$\to$Messidor-2 (no Messidor-2 training) collapses to QWK $\a
 \textbf{Prior-probability shift correction.} For each head, we sort all target-domain samples by severity score $P(y{>}k\,|\,x)$ and assign grades by matching the cumulative distribution to the APTOS \emph{source-domain} prior $\pi$. This is an ordinal-decomposition variant of the Saerens, Latinne and Decaestecker EM-style prior correction \cite{ref:saerens}, which has a long follow-up literature (Lipton et al.'s BBSE \cite{ref:bbse}, Alexandari et al.'s MLLS/BCTS \cite{ref:mlls}, Popordanoska et al.'s LaSCal \cite{ref:lascal}) that we do not claim novelty against. Our contribution is strictly in applying the source-prior variant as a vulnerability probe for frozen ordinal DR heads. Stronger target-prior estimation (BBSE, MLLS) and full unsupervised domain adaptation (DANN, CORAL, SHOT) are named as future work. The calibration uses no target-domain labels. Table~\ref{tab:cross_messidor2} reports three rows for the ordinal head, namely uncalibrated, APTOS-prior corrected, and oracle (Messidor-2 prior) corrected.
 
 \begin{table*}[!t]
-    \caption{APTOS $\to$ Messidor-2 cross-dataset transfer (no target training). SLD-style prior-shift correction \cite{ref:saerens} on the ordinal head uses no target-domain labels; ``Oracle'' uses the true Messidor-2 marginal as an upper bound. Post-correction QWK remains below the clinical-agreement threshold ($\sim 0.60$) and should be read as a vulnerability probe, not a deployment recipe.}
+    \caption{APTOS $\to$ Messidor-2 cross-dataset transfer (no target training). SLD-style prior-shift correction \cite{ref:saerens} on the ordinal head uses no target-domain labels; ``Oracle'' uses the true Messidor-2 marginal as an upper bound. Post-correction QWK remains below the clinical-agreement threshold ($\approx$0.60) and should be read as a vulnerability probe, not a deployment recipe.}
     \label{tab:cross_messidor2}
     \centering
     \footnotesize
@@ -370,13 +383,13 @@ Cross-dataset APTOS$\to$Messidor-2 (no Messidor-2 training) collapses to QWK $\a
         Vanilla CapsNet                                                & $0.0010 \pm 0.0034$ & ---               & $0.570$          \\
         Ordinal CapsNet (uncalibrated)                                 & $0.0086 \pm 0.0136$ & $17.9\%$          & $\mathbf{0.611}$ \\
         \midrule
-        Ordinal CapsNet + SLD prior corr.\ (APTOS prior, no labels)    & $\mathbf{0.2216}$   & $\mathbf{51.9\%}$ & $0.625$          \\
+        \textbf{Ordinal CapsNet + SLD prior corr.\ (APTOS prior, no labels)}    & $\mathbf{0.2216}$   & $\mathbf{51.9\%}$ & $0.625$          \\
         Ordinal CapsNet + SLD prior corr.\ (oracle prior, upper bound) & $0.2682$            & ---               & ---              \\
         \bottomrule
     \end{tabular}
 \end{table*}
 
-SLD-style prior correction lifts the ordinal ranking signal from QWK $0.009$ to $0.222$ and the binary sensitivity from $17.9\%$ to $51.9\%$ at an essentially unchanged AUC of $0.625$. The AUC is almost identical in all three rows, confirming that the rank information is preserved and the intervention is purely a threshold fix. We emphasise that QWK $0.222$ remains in the Landis-Koch \emph{fair} band ($0.21$ to $0.40$) and is far below the $\sim\!0.60$ clinical-agreement threshold. A binary sensitivity of $51.9\%$ would miss nearly half of all referable patients. The intervention is therefore a \emph{diagnostic probe} demonstrating that the cross-dataset collapse is mechanistically a threshold miscalibration rather than a feature-space destruction, not a clinical-deployment recipe. Figure~\ref{fig:messidor2_roc} shows the binary-referable ROC.
+SLD-style prior correction lifts the ordinal ranking signal from QWK $0.009$ to $0.222$ and the binary sensitivity from $17.9\%$ to $51.9\%$ at an essentially unchanged AUC of $0.625$. The AUC is almost identical in all three rows, confirming that the rank information is preserved and the intervention is purely a threshold fix. We emphasise that QWK $0.222$ remains in the Landis-Koch \emph{fair} band ($0.21$ to $0.40$) and is far below the $\approx$0.60 clinical-agreement threshold. A binary sensitivity of $51.9\%$ would miss nearly half of all referable patients. The intervention is therefore a \emph{diagnostic probe} demonstrating that the cross-dataset collapse is mechanistically a threshold miscalibration rather than a feature-space destruction, not a clinical-deployment recipe. Fig.~\ref{fig:messidor2_roc} shows the binary-referable ROC.
 
 \begin{figure}[!t]
     \centering
@@ -392,7 +405,7 @@ On IDRiD, the Ordinal CapsNet reaches validation QWK $0.7557 \pm 0.045$ but only
 
 \subsection{Training dynamics and compute}
 \label{sec:compute}
-Each frozen 5-fold run completes in roughly 115 seconds on an Apple M-series MacBook (MPS backend). The LoRA 5-fold run takes $\sim\!65$--$85$ min/fold, or $\sim\!16$ h for 3 seeds $\times$ 5 folds on the same laptop. DINOv2 feature extraction for both datasets took roughly 7 minutes on MPS.
+Each frozen 5-fold run completes in roughly 115 seconds on an Apple M-series MacBook (MPS backend). The LoRA 5-fold run takes $\approx$65--85 min/fold, or $\approx$16h for 3 seeds $\times$ 5 folds on the same laptop. DINOv2 feature extraction for both datasets took roughly 7 minutes on MPS.
 
 \section{Discussion}
 \label{sec:discussion}
@@ -412,13 +425,13 @@ A note on benchmark positioning. We do not target the SOTA APTOS QWK of MAFNet (
 \section{Limitations}
 \label{sec:limitations}
 
-We did not run a DINOv2 LoRA variant (compute budget, 16h/seed on MPS). We did not run a DINOv2 IDRiD ablation. We did not compare against rank-calibrated class-conditional conformal (RC3P, \cite{ref:rank_conformal}), evidential ordinal heads \cite{ref:uaorlqap}, or the MAFNet and Dual-SwinOrd families \cite{ref:mafnet,ref:dualswinord} because these require non-trivial training budgets on a single laptop. We flag them as natural follow-ups. Our UQ analysis is single-split for conformal set-size distribution. Marginal coverage is averaged over five splits but per-class coverage is the single-split seed-42 run. The IDRiD val$\to$test gap of $\sim$0.30 QWK is genuine, not an artefact of our protocol, and we did not attempt IDRiD-specific domain adaptation.
+We did not run a DINOv2 LoRA variant (compute budget, 16h/seed on MPS). We did not run a DINOv2 IDRiD ablation. We did not compare against rank-calibrated class-conditional conformal (RC3P, \cite{ref:rank_conformal}), evidential ordinal heads \cite{ref:uaorlqap}, or the MAFNet and Dual-SwinOrd families \cite{ref:mafnet,ref:dualswinord} because these require non-trivial training budgets on a single laptop. We flag them as natural follow-ups. Our UQ analysis is single-split for conformal set-size distribution. Marginal coverage is averaged over five splits but per-class coverage is the single-split seed-42 run. The IDRiD val$\to$test gap of $\approx$0.30 QWK is genuine, not an artefact of our protocol, and we did not attempt IDRiD-specific domain adaptation.
 
 \section{Conclusion}
 \label{sec:conclusion}
 On frozen foundation features for ordinal DR grading, the backbone is a larger architectural lever than the head, and the head choice is a smaller second-order effect that comes at a calibration cost. The $K{-}1$ ordinal decomposition is the primary head-level contribution. Capsule routing on top is a marginal QWK improvement that does not improve calibration, and its native confidence signal is duplicated by a plain sigmoid head. Split conformal prediction is the uncertainty layer that ships a usable guarantee. Average coverage holds across every configuration, but per-grade reliability fails on rare grades and needs a class-conditional fix. Cross-dataset transfer is a threshold problem rather than a feature-space failure. A label-free prior-shift correction lifts agreement into the fair band of the standard kappa scale, but not to clinical-screening levels. Negative ablations and full results are in Appendix~\ref{sec:negatives}. Code: \url{https://github.com/vineetkumar-sudo/retfound-capsnet}.
 
-\appendix
+\appendices
 
 \section{Negative-result ablations}
 \label{sec:negatives}
