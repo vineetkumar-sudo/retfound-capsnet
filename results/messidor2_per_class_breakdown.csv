@@ -1,6 +1,6 @@
 Grade,Vanilla_%,Ordinal_%,Delta_pp,Note
-0 (No DR),85.2,67.2,-18.0,Regression
-1 (Mild),5.9,34.4,+28.5,Major improvement
-2 (Moderate),47.8,44.1,-3.7,Minor drop
-3 (Severe),13.3,37.3,+24.0,Major improvement
-4 (PDR),14.3,34.3,+20.0,Major improvement
+0 (No DR),85.2,69.5,-15.6,Regression
+1 (Mild),5.9,35.2,+29.3,Major improvement
+2 (Moderate),47.8,49.6,+1.7,Improvement
+3 (Severe),13.3,30.7,+17.3,Major improvement
+4 (PDR),14.3,28.6,+14.3,Major improvement

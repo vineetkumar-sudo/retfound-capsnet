@@ -8,29 +8,29 @@ Four nonconformity scores compared: LAC (Sadinle 2019), APS (Romano 2020), RAPS 
 
 | Dataset | Model | LAC cov | LAC \|S\| | APS cov | APS \|S\| | RAPS cov | RAPS \|S\| | CCP cov | CCP \|S\| |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| APTOS | RETFound x Ordinal CapsNet | 0.902 | 1.38 | 0.939 | 1.80 | 0.936 | 1.77 | 0.903 | 1.86 |
-| APTOS | RETFound x MLP + K-1 sigmoid | 0.904 | 1.38 | 0.940 | 1.89 | 0.937 | 1.85 | 0.898 | 1.78 |
-| APTOS | DINOv2  x Ordinal CapsNet | 0.903 | 1.33 | 0.948 | 1.73 | 0.944 | 1.70 | 0.909 | 1.78 |
-| APTOS | DINOv2  x MLP + K-1 sigmoid | 0.903 | 1.30 | 0.948 | 1.79 | 0.945 | 1.75 | 0.914 | 1.65 |
-| APTOS | RETFound x Ordinal CapsNet + LoRA | 0.904 | 1.27 | 0.938 | 1.69 | 0.935 | 1.66 | 0.905 | 1.80 |
-| Messidor-2 | RETFound x Ordinal CapsNet | 0.903 | 2.30 | 0.903 | 2.54 | 0.904 | 2.54 | 0.901 | 3.48 |
-| Messidor-2 | RETFound x MLP + K-1 sigmoid | 0.905 | 2.32 | 0.904 | 2.50 | 0.903 | 2.52 | 0.904 | 3.25 |
-| Messidor-2 | DINOv2  x Ordinal CapsNet | 0.905 | 1.94 | 0.894 | 2.06 | 0.896 | 2.07 | 0.908 | 2.95 |
-| Messidor-2 | DINOv2  x MLP + K-1 sigmoid | 0.900 | 1.75 | 0.903 | 1.97 | 0.902 | 1.97 | 0.905 | 2.38 |
+| APTOS | RETFound x Ordinal CapsNet | 0.903 | 1.38 | 0.943 | 1.81 | 0.940 | 1.79 | 0.904 | 1.84 |
+| APTOS | RETFound x MLP + K-1 sigmoid | 0.902 | 1.37 | 0.939 | 1.87 | 0.936 | 1.82 | 0.897 | 1.84 |
+| APTOS | DINOv2  x Ordinal CapsNet | 0.906 | 1.32 | 0.948 | 1.76 | 0.945 | 1.74 | 0.908 | 1.75 |
+| APTOS | DINOv2  x MLP + K-1 sigmoid | 0.900 | 1.29 | 0.945 | 1.80 | 0.943 | 1.77 | 0.912 | 1.66 |
+| APTOS | RETFound x Ordinal CapsNet + LoRA | 0.903 | 1.28 | 0.942 | 1.69 | 0.939 | 1.66 | 0.913 | 1.67 |
+| Messidor-2 | RETFound x Ordinal CapsNet | 0.909 | 2.33 | 0.903 | 2.50 | 0.902 | 2.49 | 0.907 | 3.44 |
+| Messidor-2 | RETFound x MLP + K-1 sigmoid | 0.904 | 2.30 | 0.902 | 2.48 | 0.901 | 2.50 | 0.915 | 3.41 |
+| Messidor-2 | DINOv2  x Ordinal CapsNet | 0.903 | 1.85 | 0.895 | 2.03 | 0.896 | 2.04 | 0.904 | 2.73 |
+| Messidor-2 | DINOv2  x MLP + K-1 sigmoid | 0.903 | 1.83 | 0.904 | 2.03 | 0.905 | 2.03 | 0.908 | 2.54 |
 
 ## Coverage and set-size at α = 0.05 (target 95% coverage)
 
 | Dataset | Model | LAC cov | LAC mean\|S\| | APS cov | APS mean\|S\| |
 |---|---|---:|---:|---:|---:|
-| APTOS | RETFound x Ordinal CapsNet | 0.952 ± 0.005 | 1.81 ± 0.03 | 0.966 ± 0.004 | 2.20 ± 0.04 |
-| APTOS | RETFound x MLP + K-1 sigmoid | 0.951 ± 0.003 | 1.78 ± 0.02 | 0.967 ± 0.003 | 2.34 ± 0.05 |
-| APTOS | DINOv2  x Ordinal CapsNet | 0.951 ± 0.001 | 1.65 ± 0.01 | 0.971 ± 0.002 | 2.06 ± 0.02 |
-| APTOS | DINOv2  x MLP + K-1 sigmoid | 0.950 ± 0.003 | 1.60 ± 0.02 | 0.971 ± 0.001 | 2.15 ± 0.03 |
-| APTOS | RETFound x Ordinal CapsNet + LoRA | 0.950 ± 0.004 | 1.72 ± 0.03 | 0.963 ± 0.003 | 2.05 ± 0.03 |
-| Messidor-2 | RETFound x Ordinal CapsNet | 0.954 ± 0.008 | 2.86 ± 0.06 | 0.950 ± 0.007 | 3.09 ± 0.04 |
-| Messidor-2 | RETFound x MLP + K-1 sigmoid | 0.959 ± 0.008 | 2.81 ± 0.07 | 0.948 ± 0.008 | 2.95 ± 0.10 |
-| Messidor-2 | DINOv2  x Ordinal CapsNet | 0.950 ± 0.007 | 2.38 ± 0.05 | 0.945 ± 0.008 | 2.57 ± 0.06 |
-| Messidor-2 | DINOv2  x MLP + K-1 sigmoid | 0.948 ± 0.008 | 2.17 ± 0.05 | 0.955 ± 0.012 | 2.47 ± 0.10 |
+| APTOS | RETFound x Ordinal CapsNet | 0.952 ± 0.003 | 1.80 ± 0.02 | 0.967 ± 0.002 | 2.22 ± 0.05 |
+| APTOS | RETFound x MLP + K-1 sigmoid | 0.951 ± 0.003 | 1.82 ± 0.02 | 0.967 ± 0.002 | 2.37 ± 0.03 |
+| APTOS | DINOv2  x Ordinal CapsNet | 0.952 ± 0.003 | 1.67 ± 0.02 | 0.972 ± 0.003 | 2.08 ± 0.03 |
+| APTOS | DINOv2  x MLP + K-1 sigmoid | 0.950 ± 0.002 | 1.65 ± 0.01 | 0.970 ± 0.002 | 2.20 ± 0.03 |
+| APTOS | RETFound x Ordinal CapsNet + LoRA | 0.948 ± 0.005 | 1.65 ± 0.02 | 0.964 ± 0.002 | 1.99 ± 0.03 |
+| Messidor-2 | RETFound x Ordinal CapsNet | 0.954 ± 0.009 | 2.78 ± 0.08 | 0.954 ± 0.007 | 2.97 ± 0.06 |
+| Messidor-2 | RETFound x MLP + K-1 sigmoid | 0.958 ± 0.008 | 2.91 ± 0.08 | 0.949 ± 0.007 | 2.99 ± 0.07 |
+| Messidor-2 | DINOv2  x Ordinal CapsNet | 0.953 ± 0.009 | 2.35 ± 0.07 | 0.950 ± 0.008 | 2.61 ± 0.06 |
+| Messidor-2 | DINOv2  x MLP + K-1 sigmoid | 0.952 ± 0.010 | 2.33 ± 0.08 | 0.955 ± 0.006 | 2.56 ± 0.06 |
 
 ## Class-conditional coverage at α = 0.10 (single-split seed 42)
 
@@ -40,26 +40,26 @@ Worst-per-class coverage is the honest deployment metric: the marginal guarantee
 
 | Dataset | Model | C0 | C1 | C2 | C3 | C4 | min |
 |---|---|---:|---:|---:|---:|---:|---:|
-| APTOS | RETFound x Ordinal CapsNet | 0.985 | 0.840 | 0.951 | 0.890 | 0.779 | 0.779 |
-| APTOS | RETFound x MLP + K-1 sigmoid | 0.990 | 0.838 | 0.944 | 0.862 | 0.802 | 0.802 |
-| APTOS | DINOv2  x Ordinal CapsNet | 0.993 | 0.838 | 0.962 | 0.905 | 0.837 | 0.837 |
-| APTOS | DINOv2  x MLP + K-1 sigmoid | 0.995 | 0.863 | 0.953 | 0.894 | 0.845 | 0.845 |
-| APTOS | RETFound x Ordinal CapsNet + LoRA | 0.989 | 0.782 | 0.947 | 0.951 | 0.807 | 0.782 |
-| Messidor-2 | RETFound x Ordinal CapsNet | 0.929 | 0.939 | 0.778 | 0.744 | 0.833 | 0.744 |
-| Messidor-2 | RETFound x MLP + K-1 sigmoid | 0.933 | 0.947 | 0.806 | 0.721 | 0.833 | 0.721 |
-| Messidor-2 | DINOv2  x Ordinal CapsNet | 0.966 | 0.863 | 0.667 | 0.977 | 0.833 | 0.667 |
-| Messidor-2 | DINOv2  x MLP + K-1 sigmoid | 0.976 | 0.870 | 0.711 | 0.884 | 0.583 | 0.583 |
+| APTOS | RETFound x Ordinal CapsNet | 0.987 | 0.859 | 0.948 | 0.883 | 0.817 | 0.817 |
+| APTOS | RETFound x MLP + K-1 sigmoid | 0.988 | 0.861 | 0.947 | 0.862 | 0.766 | 0.766 |
+| APTOS | DINOv2  x Ordinal CapsNet | 0.992 | 0.836 | 0.960 | 0.912 | 0.845 | 0.836 |
+| APTOS | DINOv2  x MLP + K-1 sigmoid | 0.994 | 0.823 | 0.958 | 0.869 | 0.817 | 0.817 |
+| APTOS | RETFound x Ordinal CapsNet + LoRA | 0.992 | 0.794 | 0.953 | 0.940 | 0.824 | 0.794 |
+| Messidor-2 | RETFound x Ordinal CapsNet | 0.931 | 0.916 | 0.789 | 0.698 | 0.750 | 0.698 |
+| Messidor-2 | RETFound x MLP + K-1 sigmoid | 0.923 | 0.931 | 0.839 | 0.767 | 0.750 | 0.750 |
+| Messidor-2 | DINOv2  x Ordinal CapsNet | 0.962 | 0.870 | 0.728 | 1.000 | 0.583 | 0.583 |
+| Messidor-2 | DINOv2  x MLP + K-1 sigmoid | 0.964 | 0.832 | 0.778 | 0.930 | 0.500 | 0.500 |
 
 ### CCP (Mondrian, per-class quantile)
 
 | Dataset | Model | C0 | C1 | C2 | C3 | C4 | min | CCP \|S\| |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
-| APTOS | RETFound x Ordinal CapsNet | 0.909 | 0.901 | 0.907 | 0.915 | 0.908 | 0.901 | 1.86 |
-| APTOS | RETFound x MLP + K-1 sigmoid | 0.894 | 0.910 | 0.905 | 0.926 | 0.901 | 0.894 | 1.78 |
-| APTOS | DINOv2  x Ordinal CapsNet | 0.917 | 0.874 | 0.898 | 0.929 | 0.908 | 0.874 | 1.78 |
-| APTOS | DINOv2  x MLP + K-1 sigmoid | 0.932 | 0.882 | 0.887 | 0.887 | 0.901 | 0.882 | 1.65 |
-| APTOS | RETFound x Ordinal CapsNet + LoRA | 0.911 | 0.912 | 0.901 | 0.933 | 0.931 | 0.901 | 1.80 |
-| Messidor-2 | RETFound x Ordinal CapsNet | 0.903 | 0.985 | 0.883 | 0.977 | 0.917 | 0.883 | 3.48 |
-| Messidor-2 | RETFound x MLP + K-1 sigmoid | 0.911 | 0.924 | 0.894 | 0.884 | 0.833 | 0.833 | 3.25 |
-| Messidor-2 | DINOv2  x Ordinal CapsNet | 0.917 | 0.939 | 0.822 | 0.953 | 0.917 | 0.822 | 2.95 |
-| Messidor-2 | DINOv2  x MLP + K-1 sigmoid | 0.929 | 0.893 | 0.839 | 0.977 | 0.917 | 0.839 | 2.38 |
+| APTOS | RETFound x Ordinal CapsNet | 0.913 | 0.910 | 0.915 | 0.915 | 0.901 | 0.901 | 1.84 |
+| APTOS | RETFound x MLP + K-1 sigmoid | 0.907 | 0.908 | 0.907 | 0.926 | 0.898 | 0.898 | 1.84 |
+| APTOS | DINOv2  x Ordinal CapsNet | 0.911 | 0.901 | 0.901 | 0.922 | 0.916 | 0.901 | 1.75 |
+| APTOS | DINOv2  x MLP + K-1 sigmoid | 0.925 | 0.880 | 0.896 | 0.912 | 0.893 | 0.880 | 1.66 |
+| APTOS | RETFound x Ordinal CapsNet + LoRA | 0.931 | 0.899 | 0.904 | 0.912 | 0.911 | 0.899 | 1.67 |
+| Messidor-2 | RETFound x Ordinal CapsNet | 0.911 | 0.954 | 0.894 | 0.977 | 0.833 | 0.833 | 3.44 |
+| Messidor-2 | RETFound x MLP + K-1 sigmoid | 0.913 | 0.916 | 0.900 | 0.930 | 0.833 | 0.833 | 3.41 |
+| Messidor-2 | DINOv2  x Ordinal CapsNet | 0.909 | 0.939 | 0.833 | 0.930 | 1.000 | 0.833 | 2.73 |
+| Messidor-2 | DINOv2  x MLP + K-1 sigmoid | 0.929 | 0.931 | 0.822 | 1.000 | 0.917 | 0.822 | 2.54 |
