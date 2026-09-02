@@ -41,8 +41,71 @@ from __future__ import annotations
 import numpy as np
 
 
+def _pav_nondecreasing(y: np.ndarray) -> np.ndarray:
+    """Pool-Adjacent-Violators: L2 projection onto the non-decreasing cone.
+
+    Exact and O(K). Returns the unique minimiser of ||q - y||^2 subject to
+    q_1 <= q_2 <= ... <= q_m.
+    """
+    sums: list[float] = []
+    cnts: list[int] = []
+    for v in y:
+        sums.append(float(v))
+        cnts.append(1)
+        while len(sums) > 1 and sums[-2] / cnts[-2] > sums[-1] / cnts[-1]:
+            s, c = sums.pop(), cnts.pop()
+            sums[-1] += s
+            cnts[-1] += c
+    out = np.empty(len(y), dtype=np.float64)
+    i = 0
+    for s, c in zip(sums, cnts):
+        out[i:i + c] = s / c
+        i += c
+    return out
+
+
+def monotone_projection(head_probs: np.ndarray) -> tuple[np.ndarray, float]:
+    """Project each row onto the monotone (non-increasing) box.
+
+    Solves, per sample,
+
+        h_hat = argmin_q  0.5 * ||q - h||_2^2
+                 s.t.     1 >= q_1 >= q_2 >= ... >= q_{K-1} >= 0
+
+    i.e. the Euclidean projection of the raw head vector onto the intersection
+    of the antitonic cone with the unit box. This is antitonic regression, and
+    PAV solves it exactly in O(K) -- no iterative optimiser required. Because
+    the inputs already lie in [0, 1] and PAV returns weighted averages of its
+    inputs, the box constraints hold automatically, so the cone projection is
+    the full solution.
+
+    This replaces the previous clip-at-zero-then-renormalise repair, which was
+    not the solution of any optimisation problem. Enforcing monotonicity at the
+    level of the CUMULATIVE probabilities (before decoding) rather than
+    repairing the decoded class probabilities (after) is what makes the
+    resulting distribution valid by construction.
+
+    Returns:
+        h_hat: (N, K-1) projected, row-wise non-increasing.
+        violation_rate: fraction of rows that were not already monotone (i.e.
+                        the fraction the projection actually moved).
+    """
+    h = np.asarray(head_probs, dtype=np.float64)
+    n = h.shape[0]
+    violated = (np.diff(h, axis=1) > 0).any(axis=1)
+    out = h.copy()
+    for i in np.flatnonzero(violated):
+        # Non-increasing in h  <=>  non-decreasing in reversed(h).
+        out[i] = _pav_nondecreasing(h[i][::-1])[::-1]
+    return out, float(violated.mean())
+
+
 def chain_rule_probs(
-    head_probs: np.ndarray, num_classes: int = 5, renormalise: bool = True
+    head_probs: np.ndarray,
+    num_classes: int = 5,
+    renormalise: bool = True,
+    decode: str = "product",
+    project: bool = False,
 ) -> tuple[np.ndarray, float]:
     """Convert K-1 "P(y>k)" head probabilities to a K-class probability matrix.
 
@@ -69,11 +132,19 @@ def chain_rule_probs(
     n, k_minus_1 = h.shape
     assert k_minus_1 == num_classes - 1, \
         f"head_probs last dim {k_minus_1} != num_classes-1 = {num_classes - 1}"
+    assert decode in ("product", "difference"), f"bad decode: {decode}"
+
+    if project:
+        h, _ = monotone_projection(h)
 
     probs = np.zeros((n, num_classes), dtype=np.float64)
     probs[:, 0] = 1.0 - h[:, 0]
-    for k in range(1, num_classes - 1):
-        probs[:, k] = h[:, k - 1] * (1.0 - h[:, k])
+    if decode == "product":
+        for k in range(1, num_classes - 1):
+            probs[:, k] = h[:, k - 1] * (1.0 - h[:, k])
+    else:                                   # exact cumulative differences
+        for k in range(1, num_classes - 1):
+            probs[:, k] = h[:, k - 1] - h[:, k]
     probs[:, -1] = h[:, -1]
 
     probs = np.clip(probs, 0.0, None)
