@@ -32,6 +32,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from src.losses.margin_loss import MarginLoss
 from src.models.capsnet import CapsNet
+from src.utils import enable_tf32
 
 
 # ---------------------------------------------------------------------------
@@ -45,6 +46,7 @@ def load_config(path: str = "configs/capsnet.yaml") -> dict:
 
 def get_device() -> torch.device:
     if torch.cuda.is_available():
+        enable_tf32()
         return torch.device("cuda")
     if torch.backends.mps.is_available():
         return torch.device("mps")

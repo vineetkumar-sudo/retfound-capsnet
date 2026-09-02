@@ -40,6 +40,7 @@ from src.data.image_dataset import FundusImageDataset
 from src.evaluate import compute_all_metrics
 from src.losses.ordinal_loss import OrdinalMarginLoss, predict_grade_from_heads
 from src.models.retfound_lora_capsnet import RetfoundLoraOrdinalCapsNet
+from src.utils import enable_tf32
 
 
 APTOS_CSV = Path("data/aptos/train.csv")
@@ -64,8 +65,11 @@ WEIGHT_DECAY = 1e-4
 
 
 def get_device() -> torch.device:
-    if torch.cuda.is_available(): return torch.device("cuda")
-    if torch.backends.mps.is_available(): return torch.device("mps")
+    if torch.cuda.is_available():
+        enable_tf32()
+        return torch.device("cuda")
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
     return torch.device("cpu")
 
 

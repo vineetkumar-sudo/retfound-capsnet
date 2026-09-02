@@ -41,6 +41,7 @@ from src.losses.ordinal_loss import (
     predict_grade_from_heads,
 )
 from src.models.ordinal_capsnet import OrdinalCapsNet
+from src.utils import enable_tf32
 
 
 # ---------------------------------------------------------------------------
@@ -53,8 +54,11 @@ def load_config(path: str) -> dict:
 
 
 def get_device() -> torch.device:
-    if torch.cuda.is_available(): return torch.device("cuda")
-    if torch.backends.mps.is_available(): return torch.device("mps")
+    if torch.cuda.is_available():
+        enable_tf32()
+        return torch.device("cuda")
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
     return torch.device("cpu")
 
 

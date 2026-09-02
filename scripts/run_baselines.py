@@ -37,6 +37,7 @@ from sklearn.model_selection import StratifiedKFold
 from torch.utils.data import DataLoader, TensorDataset
 
 from src.models.baselines import LinearProbe, MLPClassifier, MLPRegressor
+from src.utils import enable_tf32
 
 # ---------------------------------------------------------------------------
 # Config & data
@@ -49,6 +50,7 @@ def load_config(path: str = "configs/baselines.yaml") -> dict:
 
 def get_device() -> torch.device:
     if torch.cuda.is_available():
+        enable_tf32()
         return torch.device("cuda")
     if torch.backends.mps.is_available():
         return torch.device("mps")

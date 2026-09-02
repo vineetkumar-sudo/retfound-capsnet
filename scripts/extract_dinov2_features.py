@@ -40,6 +40,7 @@ import torch
 from PIL import Image
 from torchvision import transforms
 from tqdm import tqdm
+from src.utils import enable_tf32
 
 # Mirror src/data/feature_cache.py::RETFOUND_TRANSFORM exactly, so the only
 # variable is the backbone (DINOv2 official eval transform is the same).
@@ -55,8 +56,11 @@ EVAL_TRANSFORM = transforms.Compose([
 
 
 def get_device() -> torch.device:
-    if torch.cuda.is_available(): return torch.device("cuda")
-    if torch.backends.mps.is_available(): return torch.device("mps")
+    if torch.cuda.is_available():
+        enable_tf32()
+        return torch.device("cuda")
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
     return torch.device("cpu")
 
 

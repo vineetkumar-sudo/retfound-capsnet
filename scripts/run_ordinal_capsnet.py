@@ -39,6 +39,7 @@ from src.losses.ordinal_loss import (
 )
 from src.models.mlp_ordinal import MLPOrdinal
 from src.models.ordinal_capsnet import OrdinalCapsNet
+from src.utils import enable_tf32
 
 
 # ---------------------------------------------------------------------------
@@ -52,6 +53,7 @@ def load_config(path: str) -> dict:
 
 def get_device() -> torch.device:
     if torch.cuda.is_available():
+        enable_tf32()
         return torch.device("cuda")
     if torch.backends.mps.is_available():
         return torch.device("mps")

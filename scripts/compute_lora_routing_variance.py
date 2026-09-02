@@ -31,6 +31,7 @@ from torch.utils.data import DataLoader
 
 from src.data.image_dataset import FundusImageDataset
 from src.models.retfound_lora_capsnet import RetfoundLoraOrdinalCapsNet
+from src.utils import enable_tf32
 
 
 APTOS_CSV = Path("data/aptos/train.csv")
@@ -44,8 +45,11 @@ BATCH_SIZE = 16  # eval only — no grad
 
 
 def get_device() -> torch.device:
-    if torch.cuda.is_available(): return torch.device("cuda")
-    if torch.backends.mps.is_available(): return torch.device("mps")
+    if torch.cuda.is_available():
+        enable_tf32()
+        return torch.device("cuda")
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
     return torch.device("cpu")
 
 

@@ -41,6 +41,7 @@ from PIL import Image
 from tqdm import tqdm
 
 from src.data.feature_cache import RETFOUND_TRANSFORM, load_retfound
+from src.utils import enable_tf32
 
 
 ROOT = Path("data/messidor2")
@@ -51,8 +52,11 @@ WEIGHTS = Path("data/weights/RETFound_mae_natureCFP.pth")
 
 
 def get_device() -> torch.device:
-    if torch.cuda.is_available(): return torch.device("cuda")
-    if torch.backends.mps.is_available(): return torch.device("mps")
+    if torch.cuda.is_available():
+        enable_tf32()
+        return torch.device("cuda")
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
     return torch.device("cpu")
 
 

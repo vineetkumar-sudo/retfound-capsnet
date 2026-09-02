@@ -16,6 +16,8 @@ from PIL import Image
 from torchvision import transforms
 from tqdm import tqdm
 
+from src.utils import enable_tf32
+
 # Official RETFound eval transform (matches util/datasets.py in RETFound_MAE repo)
 RETFOUND_TRANSFORM = transforms.Compose([
     transforms.Resize(256, interpolation=transforms.InterpolationMode.BICUBIC),
@@ -132,6 +134,8 @@ def cache_features(
         device = torch.device("mps")
     else:
         device = torch.device("cpu")
+    if device.type == "cuda":
+        enable_tf32()
     print(f"Device: {device}")
 
     # Load model
