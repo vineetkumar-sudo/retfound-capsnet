@@ -45,6 +45,10 @@ from src.utils import enable_tf32
 
 APTOS_CSV = Path("data/aptos/train.csv")
 APTOS_IMG = Path("data/aptos/train_images")
+# Overridden by --image-dir. Point at a pre-resized cache (see
+# scripts/build_image_cache.py) to skip full-resolution PNG decode; the cached
+# path is bit-identical because Resize(256) is then a no-op.
+IMAGE_DIR = APTOS_IMG
 OUT_DIR = Path("results/lora_ordinal_capsnet")
 
 NUM_CLASSES = 5
@@ -93,8 +97,8 @@ def load_aptos_split() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
 
 def make_loaders(ids_tr, y_tr, ids_va, y_va, batch_size: int, num_workers: int):
-    ds_tr = FundusImageDataset(ids_tr, y_tr, APTOS_IMG, image_ext=".png")
-    ds_va = FundusImageDataset(ids_va, y_va, APTOS_IMG, image_ext=".png")
+    ds_tr = FundusImageDataset(ids_tr, y_tr, IMAGE_DIR, image_ext=".png")
+    ds_va = FundusImageDataset(ids_va, y_va, IMAGE_DIR, image_ext=".png")
     return (
         DataLoader(ds_tr, batch_size=batch_size, shuffle=True,
                    num_workers=num_workers, pin_memory=False),
@@ -264,6 +268,11 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--patience", type=int, default=DEFAULT_PATIENCE)
     ap.add_argument("--batch-size", type=int, default=DEFAULT_BATCH)
     ap.add_argument("--num-workers", type=int, default=2)
+    ap.add_argument("--image-dir", type=str, default=None,
+                    help="Override the APTOS image directory. Use a pre-resized "
+                         "cache from scripts/build_image_cache.py (e.g. "
+                         "data/aptos/train_images_256) to avoid decoding "
+                         "full-resolution PNGs every epoch. Bit-identical.")
     ap.add_argument("--log-every", type=int, default=5)
     ap.add_argument("--sanity", action="store_true",
                     help="1 fold, 1 epoch, batch 4 — for plumbing verification.")
@@ -309,8 +318,15 @@ def main() -> None:
         args.patience = 1
         args.log_every = 1
 
+    if args.image_dir:
+        global IMAGE_DIR
+        IMAGE_DIR = Path(args.image_dir)
+        if not IMAGE_DIR.is_dir():
+            raise SystemExit(f"--image-dir not found: {IMAGE_DIR}")
+
     device = get_device()
     print(f"Device: {device}")
+    print(f"Images: {IMAGE_DIR}")
     print(f"Epochs: {args.epochs}  patience: {args.patience}  "
           f"batch: {args.batch_size}  lora_r: {LORA_R}  lora_alpha: {LORA_ALPHA}\n")
 
