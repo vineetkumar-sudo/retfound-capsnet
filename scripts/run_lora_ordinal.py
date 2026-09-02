@@ -107,8 +107,9 @@ def make_loaders(ids_tr, y_tr, ids_va, y_va, batch_size: int, num_workers: int):
     )
 
 
-def build_optimizer(model: RetfoundLoraOrdinalCapsNet) -> torch.optim.Optimizer:
-    """Two param groups: LoRA adapters + OrdinalCapsNet head."""
+def build_optimizer(model: RetfoundLoraOrdinalCapsNet,
+                    tune_mode: str = "lora") -> torch.optim.Optimizer:
+    """Two param groups: backbone (LoRA adapters or unfrozen weights) + head."""
     lora_params, head_params, other_trainable = [], [], []
     for name, p in model.named_parameters():
         if not p.requires_grad:
@@ -120,10 +121,17 @@ def build_optimizer(model: RetfoundLoraOrdinalCapsNet) -> torch.optim.Optimizer:
         else:
             other_trainable.append((name, p))
     if other_trainable:
-        print("  WARN: trainable params outside LoRA + head:")
-        for name, _ in other_trainable:
-            print(f"    {name}")
-        # Include them with LoRA lr so they still train (but warn)
+        # In full/progressive mode unfrozen backbone weights are expected, and
+        # listing 300+ tensors would bury the log; only warn in LoRA mode,
+        # where anything outside the adapters is a genuine surprise.
+        if tune_mode == "lora":
+            print("  WARN: trainable params outside LoRA + head:")
+            for name, _ in other_trainable:
+                print(f"    {name}")
+        else:
+            print(f"  backbone: {len(other_trainable)} unfrozen tensors "
+                  f"({sum(p.numel() for _, p in other_trainable):,} params) "
+                  f"at lr={LR_LORA}")
         lora_params.extend(p for _, p in other_trainable)
 
     return torch.optim.AdamW([
@@ -160,7 +168,8 @@ def train_fold(fold_idx: int, ids_tr, y_tr, ids_va, y_va,
                device: torch.device, epochs: int, patience: int,
                batch_size: int, num_workers: int,
                out_dir: Path, log_every: int,
-               model_seed: int = SEED) -> dict:
+               model_seed: int = SEED,
+               tune_mode: str = "lora", unfreeze_blocks: int = 0) -> dict:
     torch.manual_seed(model_seed + fold_idx)
     np.random.seed(model_seed + fold_idx)
 
@@ -171,10 +180,12 @@ def train_fold(fold_idx: int, ids_tr, y_tr, ids_va, y_va,
         num_classes=NUM_CLASSES,
     ).to(device)
 
-    report = model.trainable_params_report()
-    print(f"  trainable: {report['trainable']:,}  |  frozen: {report['frozen']:,}")
+    report = model.set_tuning_mode(tune_mode, unfreeze_blocks)
+    print(f"  mode={tune_mode}"
+          + (f"(last {unfreeze_blocks} blocks)" if tune_mode == "progressive" else "")
+          + f"  trainable: {report['trainable']:,}  |  frozen: {report['frozen']:,}")
 
-    optim = build_optimizer(model)
+    optim = build_optimizer(model, tune_mode)
     loss_fn = OrdinalMarginLoss(num_classes=NUM_CLASSES)
 
     best_qwk, best_state, best_epoch, no_improve = -1.0, None, 0, 0
@@ -209,10 +220,18 @@ def train_fold(fold_idx: int, ids_tr, y_tr, ids_va, y_va,
         if improved:
             best_qwk = val_m["qwk"]
             best_epoch = epoch
-            # Save only the trainable subset (LoRA + head) so the .pt is tiny
+            # Snapshot every tensor that is actually being trained. In LoRA
+            # mode that is just adapters + head (a tiny .pt). In full /
+            # progressive mode the unfrozen backbone weights must be included
+            # too, otherwise the best-epoch restore below would pair a
+            # best-epoch head with a last-epoch backbone.
+            if tune_mode == "lora":
+                keep = lambda k: ("lora_" in k) or k.startswith("head.")
+            else:
+                trained = {n for n, q in model.named_parameters() if q.requires_grad}
+                keep = trained.__contains__
             best_state = {k: v.detach().cpu().clone()
-                          for k, v in model.state_dict().items()
-                          if ("lora_" in k) or k.startswith("head.")}
+                          for k, v in model.state_dict().items() if keep(k)}
             no_improve = 0
         else:
             no_improve += 1
@@ -240,7 +259,9 @@ def train_fold(fold_idx: int, ids_tr, y_tr, ids_va, y_va,
         y_true=final_m["_y_true"], y_pred=final_m["_y_pred"],
         head_lengths=final_m["_head_lengths"],
     )
-    if best_state is not None:
+    # A full fine-tune snapshot is ~1.2 GB/fold and nothing downstream reads
+    # it, so only the small LoRA/head checkpoints are persisted.
+    if best_state is not None and tune_mode == "lora":
         torch.save(best_state, out_dir / f"weights_fold{fold_idx + 1}.pt")
 
     fold_summary = {
@@ -268,6 +289,14 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--patience", type=int, default=DEFAULT_PATIENCE)
     ap.add_argument("--batch-size", type=int, default=DEFAULT_BATCH)
     ap.add_argument("--num-workers", type=int, default=2)
+    ap.add_argument("--tune-mode", choices=["lora", "full", "progressive"],
+                    default="lora",
+                    help="Which backbone parameters receive gradients. "
+                         "'full' = full fine-tune, 'progressive' = only the "
+                         "last --unfreeze-blocks transformer blocks "
+                         "(reviewer R1-6).")
+    ap.add_argument("--unfreeze-blocks", type=int, default=4,
+                    help="Blocks to unfreeze for --tune-mode progressive.")
     ap.add_argument("--image-dir", type=str, default=None,
                     help="Override the APTOS image directory. Use a pre-resized "
                          "cache from scripts/build_image_cache.py (e.g. "
@@ -407,6 +436,8 @@ def main() -> None:
                 args.batch_size, args.num_workers,
                 out_dir, args.log_every,
                 model_seed=model_seed,
+                tune_mode=args.tune_mode,
+                unfreeze_blocks=args.unfreeze_blocks,
             )
             per_fold.append(summary)
             (out_dir / "summary.json").write_text(json.dumps({

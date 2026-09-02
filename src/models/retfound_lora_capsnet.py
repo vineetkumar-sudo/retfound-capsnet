@@ -85,3 +85,51 @@ class RetfoundLoraOrdinalCapsNet(nn.Module):
         trainable = sum(p.numel() for p in self.parameters() if p.requires_grad)
         frozen = sum(p.numel() for p in self.parameters() if not p.requires_grad)
         return {"trainable": trainable, "frozen": frozen, "total": trainable + frozen}
+
+    def set_tuning_mode(self, mode: str, unfreeze_blocks: int = 0) -> dict:
+        """Switch between LoRA, full fine-tuning, and progressive unfreezing.
+
+        Reviewer comment 6 asked why full fine-tuning and layer-wise
+        progressive unfreezing were excluded from the main comparison. This
+        makes both runnable from the same driver, so the three tiers share a
+        protocol and differ only in which backbone parameters receive
+        gradients.
+
+            "lora"        adapters only (default; leaves the model as built)
+            "full"        every backbone parameter trainable
+            "progressive" only the last `unfreeze_blocks` transformer blocks
+                          (plus the final norm), the classic top-down schedule
+
+        The head is always trainable. Returns the parameter-count report.
+        """
+        assert mode in ("lora", "full", "progressive"), f"bad mode: {mode}"
+        if mode == "lora":
+            return self.trainable_params_report()
+
+        # PEFT wraps the timm model; reach the real ViT underneath.
+        vit = getattr(self.backbone, "base_model", self.backbone)
+        vit = getattr(vit, "model", vit)
+
+        if mode == "full":
+            for p in self.backbone.parameters():
+                p.requires_grad_(True)
+        else:
+            for p in self.backbone.parameters():
+                p.requires_grad_(False)
+            blocks = getattr(vit, "blocks", None)
+            if blocks is None:
+                raise AttributeError("could not locate transformer blocks on backbone")
+            n = len(blocks)
+            keep = blocks[max(0, n - unfreeze_blocks):] if unfreeze_blocks > 0 else []
+            for blk in keep:
+                for p in blk.parameters():
+                    p.requires_grad_(True)
+            for attr in ("norm", "fc_norm"):
+                mod = getattr(vit, attr, None)
+                if mod is not None:
+                    for p in mod.parameters():
+                        p.requires_grad_(True)
+
+        for p in self.head.parameters():
+            p.requires_grad_(True)
+        return self.trainable_params_report()
