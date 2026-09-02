@@ -1,0 +1,776 @@
+[
+  {
+    "dataset": "APTOS",
+    "model": "RETFound x Ordinal CapsNet",
+    "n_total": 9885,
+    "n_files_pooled": 15,
+    "alpha0.10_lac": {
+      "coverage_mean": 0.903459437588509,
+      "coverage_std": 0.006191233623178388,
+      "set_size_mean": 1.3769370827432734,
+      "set_size_std": 0.016339236058447726,
+      "noncontiguous_rate_mean": 0.05090026299817925,
+      "noncontiguous_rate_std": 0.0012640501195074602,
+      "worst_class_coverage_mean": 0.7014725494121171,
+      "worst_class_coverage_std": 0.02026218609043045
+    },
+    "alpha0.10_aps": {
+      "coverage_mean": 0.9433137770584665,
+      "coverage_std": 0.003644658879187091,
+      "set_size_mean": 1.814161440420797,
+      "set_size_std": 0.032929250368551946,
+      "noncontiguous_rate_mean": 0.12178838761885491,
+      "noncontiguous_rate_std": 0.00441936230496886,
+      "worst_class_coverage_mean": 0.8011255008628178,
+      "worst_class_coverage_std": 0.008662444727005418
+    },
+    "alpha0.10_raps": {
+      "coverage_mean": 0.9399554926158202,
+      "coverage_std": 0.004240525189261212,
+      "set_size_mean": 1.7857980983208581,
+      "set_size_std": 0.029816241423892723,
+      "noncontiguous_rate_mean": 0.12615820352012946,
+      "noncontiguous_rate_std": 0.0037796100014264055,
+      "worst_class_coverage_mean": 0.785038806973235,
+      "worst_class_coverage_std": 0.009092007077492973
+    },
+    "alpha0.10_ocp": {
+      "coverage_mean": 0.9426259356665992,
+      "coverage_std": 0.00365855700763335,
+      "set_size_mean": 1.880194214040057,
+      "set_size_std": 0.035004577756775054,
+      "noncontiguous_rate_mean": 0.0,
+      "noncontiguous_rate_std": 0.0,
+      "worst_class_coverage_mean": 0.7685334295620482,
+      "worst_class_coverage_std": 0.011862996419596908
+    },
+    "alpha0.05_lac": {
+      "coverage_mean": 0.9522152538943962,
+      "coverage_std": 0.0026389923300215055,
+      "set_size_mean": 1.7955088003236903,
+      "set_size_std": 0.01619886071650429,
+      "noncontiguous_rate_mean": 0.06287679546833905,
+      "noncontiguous_rate_std": 0.0029716308358452115,
+      "worst_class_coverage_mean": 0.8140206274172996,
+      "worst_class_coverage_std": 0.01211359720447626
+    },
+    "alpha0.05_aps": {
+      "coverage_mean": 0.9668217681569897,
+      "coverage_std": 0.0024810373808222983,
+      "set_size_mean": 2.2205543192393282,
+      "set_size_std": 0.04645833499428692,
+      "noncontiguous_rate_mean": 0.15476431317013958,
+      "noncontiguous_rate_std": 0.005594784063910519,
+      "worst_class_coverage_mean": 0.8646882357792529,
+      "worst_class_coverage_std": 0.00548905810864848
+    },
+    "alpha0.05_raps": {
+      "coverage_mean": 0.9635039449726885,
+      "coverage_std": 0.0016712018149353195,
+      "set_size_mean": 2.173214646975521,
+      "set_size_std": 0.03410296067650688,
+      "noncontiguous_rate_mean": 0.1624924135140603,
+      "noncontiguous_rate_std": 0.004924652099963794,
+      "worst_class_coverage_mean": 0.851168639996707,
+      "worst_class_coverage_std": 0.010718514243218707
+    },
+    "alpha0.05_ocp": {
+      "coverage_mean": 0.9675905320655472,
+      "coverage_std": 0.0021501647186868574,
+      "set_size_mean": 2.286789399150314,
+      "set_size_std": 0.04914512449210404,
+      "noncontiguous_rate_mean": 0.0,
+      "noncontiguous_rate_std": 0.0,
+      "worst_class_coverage_mean": 0.8376553215881882,
+      "worst_class_coverage_std": 0.007556555428227276
+    }
+  },
+  {
+    "dataset": "APTOS",
+    "model": "RETFound x MLP + K-1 sigmoid",
+    "n_total": 9885,
+    "n_files_pooled": 15,
+    "alpha0.10_lac": {
+      "coverage_mean": 0.9020837548047744,
+      "coverage_std": 0.005657346329803584,
+      "set_size_mean": 1.3663362330568483,
+      "set_size_std": 0.01893889461259634,
+      "noncontiguous_rate_mean": 0.023346146065142646,
+      "noncontiguous_rate_std": 0.0005807283064700425,
+      "worst_class_coverage_mean": 0.6686007072266668,
+      "worst_class_coverage_std": 0.01976245576991238
+    },
+    "alpha0.10_aps": {
+      "coverage_mean": 0.9391058061905724,
+      "coverage_std": 0.0027650171253522124,
+      "set_size_mean": 1.8661136961359497,
+      "set_size_std": 0.025438646658726964,
+      "noncontiguous_rate_mean": 0.08395711106615418,
+      "noncontiguous_rate_std": 0.0011656775473103955,
+      "worst_class_coverage_mean": 0.7692803204812257,
+      "worst_class_coverage_std": 0.01485392347398489
+    },
+    "alpha0.10_raps": {
+      "coverage_mean": 0.9357879830062714,
+      "coverage_std": 0.001883079308633622,
+      "set_size_mean": 1.8225773821565852,
+      "set_size_std": 0.018836008650232643,
+      "noncontiguous_rate_mean": 0.08695124418369411,
+      "noncontiguous_rate_std": 0.0012756530665939587,
+      "worst_class_coverage_mean": 0.7547947753467268,
+      "worst_class_coverage_std": 0.012267467440520635
+    },
+    "alpha0.10_ocp": {
+      "coverage_mean": 0.9376492008901478,
+      "coverage_std": 0.0033813606984869427,
+      "set_size_mean": 1.9089217074651021,
+      "set_size_std": 0.02739361659089392,
+      "noncontiguous_rate_mean": 0.0,
+      "noncontiguous_rate_std": 0.0,
+      "worst_class_coverage_mean": 0.734284985982989,
+      "worst_class_coverage_std": 0.016665115863186867
+    },
+    "alpha0.05_lac": {
+      "coverage_mean": 0.9514464899858386,
+      "coverage_std": 0.002549380376617159,
+      "set_size_mean": 1.8208375480477443,
+      "set_size_std": 0.0183787666863893,
+      "noncontiguous_rate_mean": 0.013230831478858973,
+      "noncontiguous_rate_std": 0.0008252509833854523,
+      "worst_class_coverage_mean": 0.8014991108305687,
+      "worst_class_coverage_std": 0.012368815076876974
+    },
+    "alpha0.05_aps": {
+      "coverage_mean": 0.9668217681569896,
+      "coverage_std": 0.0018629762384335796,
+      "set_size_mean": 2.365729314181671,
+      "set_size_std": 0.029120414854612194,
+      "noncontiguous_rate_mean": 0.06922921302852518,
+      "noncontiguous_rate_std": 0.003039715148046609,
+      "worst_class_coverage_mean": 0.8726612610922378,
+      "worst_class_coverage_std": 0.009522805811142527
+    },
+    "alpha0.05_raps": {
+      "coverage_mean": 0.9633420999393081,
+      "coverage_std": 0.0017701511514649076,
+      "set_size_mean": 2.296014566053004,
+      "set_size_std": 0.03346402913333607,
+      "noncontiguous_rate_mean": 0.07315395508800324,
+      "noncontiguous_rate_std": 0.003161679076768971,
+      "worst_class_coverage_mean": 0.8530722143283447,
+      "worst_class_coverage_std": 0.008234605500459976
+    },
+    "alpha0.05_ocp": {
+      "coverage_mean": 0.9665385393485739,
+      "coverage_std": 0.0017242383777190202,
+      "set_size_mean": 2.394294962573336,
+      "set_size_std": 0.030221878697162467,
+      "noncontiguous_rate_mean": 0.0,
+      "noncontiguous_rate_std": 0.0,
+      "worst_class_coverage_mean": 0.8526767811635707,
+      "worst_class_coverage_std": 0.003788812461712321
+    }
+  },
+  {
+    "dataset": "APTOS",
+    "model": "DINOv2  x Ordinal CapsNet",
+    "n_total": 9885,
+    "n_files_pooled": 15,
+    "alpha0.10_lac": {
+      "coverage_mean": 0.9058061905725268,
+      "coverage_std": 0.003042944879945475,
+      "set_size_mean": 1.3216670038438196,
+      "set_size_std": 0.008515148482331203,
+      "noncontiguous_rate_mean": 0.022901072223346162,
+      "noncontiguous_rate_std": 0.000485535100141643,
+      "worst_class_coverage_mean": 0.6750203207285943,
+      "worst_class_coverage_std": 0.01539890637664938
+    },
+    "alpha0.10_aps": {
+      "coverage_mean": 0.9483309730932632,
+      "coverage_std": 0.003915763572546321,
+      "set_size_mean": 1.7612785757637064,
+      "set_size_std": 0.015920361200308177,
+      "noncontiguous_rate_mean": 0.08124620675703013,
+      "noncontiguous_rate_std": 0.0018743653363383385,
+      "worst_class_coverage_mean": 0.8187647308043358,
+      "worst_class_coverage_std": 0.012623240636142343
+    },
+    "alpha0.10_raps": {
+      "coverage_mean": 0.9447703823588913,
+      "coverage_std": 0.003435634993381147,
+      "set_size_mean": 1.7367185919482098,
+      "set_size_std": 0.01801712166137217,
+      "noncontiguous_rate_mean": 0.08318834715759663,
+      "noncontiguous_rate_std": 0.0020367732872592715,
+      "worst_class_coverage_mean": 0.8094316721386001,
+      "worst_class_coverage_std": 0.013058906334779534
+    },
+    "alpha0.10_ocp": {
+      "coverage_mean": 0.9480477442848473,
+      "coverage_std": 0.003989898615616774,
+      "set_size_mean": 1.8107222334614608,
+      "set_size_std": 0.01713026658616407,
+      "noncontiguous_rate_mean": 0.0,
+      "noncontiguous_rate_std": 0.0,
+      "worst_class_coverage_mean": 0.804186276928541,
+      "worst_class_coverage_std": 0.017297312676975374
+    },
+    "alpha0.05_lac": {
+      "coverage_mean": 0.9524580214444669,
+      "coverage_std": 0.0034021158016715454,
+      "set_size_mean": 1.6744082540967025,
+      "set_size_std": 0.017322239218923455,
+      "noncontiguous_rate_mean": 0.035403601051992736,
+      "noncontiguous_rate_std": 0.001910696978048571,
+      "worst_class_coverage_mean": 0.8134839579273985,
+      "worst_class_coverage_std": 0.019471080914450486
+    },
+    "alpha0.05_aps": {
+      "coverage_mean": 0.9724458830669633,
+      "coverage_std": 0.0026420922868403097,
+      "set_size_mean": 2.0784543799312156,
+      "set_size_std": 0.029497728110852217,
+      "noncontiguous_rate_mean": 0.12433744689459843,
+      "noncontiguous_rate_std": 0.006501055316494415,
+      "worst_class_coverage_mean": 0.8896937171476781,
+      "worst_class_coverage_std": 0.00914376391370869
+    },
+    "alpha0.05_raps": {
+      "coverage_mean": 0.9686425247825208,
+      "coverage_std": 0.0027202486447860316,
+      "set_size_mean": 2.0354036010519927,
+      "set_size_std": 0.03321792920767046,
+      "noncontiguous_rate_mean": 0.1373255108233866,
+      "noncontiguous_rate_std": 0.00903328742202938,
+      "worst_class_coverage_mean": 0.8782230837132821,
+      "worst_class_coverage_std": 0.008168776511055654
+    },
+    "alpha0.05_ocp": {
+      "coverage_mean": 0.9727291118753794,
+      "coverage_std": 0.002257868732074224,
+      "set_size_mean": 2.1902083754804775,
+      "set_size_std": 0.033067865362979454,
+      "noncontiguous_rate_mean": 0.0,
+      "noncontiguous_rate_std": 0.0,
+      "worst_class_coverage_mean": 0.8732294735253859,
+      "worst_class_coverage_std": 0.0130983601439973
+    }
+  },
+  {
+    "dataset": "APTOS",
+    "model": "DINOv2  x MLP + K-1 sigmoid",
+    "n_total": 9885,
+    "n_files_pooled": 15,
+    "alpha0.10_lac": {
+      "coverage_mean": 0.900182075662553,
+      "coverage_std": 0.00220727197199853,
+      "set_size_mean": 1.2905927574347562,
+      "set_size_std": 0.01135412409270045,
+      "noncontiguous_rate_mean": 0.017843414930204315,
+      "noncontiguous_rate_std": 0.0010581992175296088,
+      "worst_class_coverage_mean": 0.653721764642324,
+      "worst_class_coverage_std": 0.006697635436804862
+    },
+    "alpha0.10_aps": {
+      "coverage_mean": 0.9454177624924135,
+      "coverage_std": 0.0032303190218429417,
+      "set_size_mean": 1.803884280801133,
+      "set_size_std": 0.021399607249786547,
+      "noncontiguous_rate_mean": 0.07291118753793244,
+      "noncontiguous_rate_std": 0.0015332628218892538,
+      "worst_class_coverage_mean": 0.810701529073631,
+      "worst_class_coverage_std": 0.011326947255553874
+    },
+    "alpha0.10_raps": {
+      "coverage_mean": 0.9425045518915638,
+      "coverage_std": 0.003258073581096078,
+      "set_size_mean": 1.770301436374671,
+      "set_size_std": 0.01721748968009634,
+      "noncontiguous_rate_mean": 0.07659316204733968,
+      "noncontiguous_rate_std": 0.0006082660885443116,
+      "worst_class_coverage_mean": 0.8001986502400994,
+      "worst_class_coverage_std": 0.012243201790743402
+    },
+    "alpha0.10_ocp": {
+      "coverage_mean": 0.946429293951042,
+      "coverage_std": 0.0034198740213013286,
+      "set_size_mean": 1.839692494436577,
+      "set_size_std": 0.023441564461657658,
+      "noncontiguous_rate_mean": 0.0,
+      "noncontiguous_rate_std": 0.0,
+      "worst_class_coverage_mean": 0.7910844742801267,
+      "worst_class_coverage_std": 0.011367999919228673
+    },
+    "alpha0.05_lac": {
+      "coverage_mean": 0.9495448108436172,
+      "coverage_std": 0.002426326417247024,
+      "set_size_mean": 1.6485939712725066,
+      "set_size_std": 0.013110946183305414,
+      "noncontiguous_rate_mean": 0.01764110863847863,
+      "noncontiguous_rate_std": 0.0007394564791623379,
+      "worst_class_coverage_mean": 0.7976881393662233,
+      "worst_class_coverage_std": 0.018811907823030227
+    },
+    "alpha0.05_aps": {
+      "coverage_mean": 0.9699372850495649,
+      "coverage_std": 0.0019003873867396274,
+      "set_size_mean": 2.1987052397329556,
+      "set_size_std": 0.028708225124682844,
+      "noncontiguous_rate_mean": 0.09682379121990696,
+      "noncontiguous_rate_std": 0.0019345390391069116,
+      "worst_class_coverage_mean": 0.8879029185359458,
+      "worst_class_coverage_std": 0.006734264279278624
+    },
+    "alpha0.05_raps": {
+      "coverage_mean": 0.9653651628565647,
+      "coverage_std": 0.002243320457314021,
+      "set_size_mean": 2.134533683997572,
+      "set_size_std": 0.0356068269058973,
+      "noncontiguous_rate_mean": 0.10730325713129678,
+      "noncontiguous_rate_std": 0.003106834524855735,
+      "worst_class_coverage_mean": 0.8726478550627892,
+      "worst_class_coverage_std": 0.009572878020802304
+    },
+    "alpha0.05_ocp": {
+      "coverage_mean": 0.9700586688246003,
+      "coverage_std": 0.0028265019941854015,
+      "set_size_mean": 2.231802549059276,
+      "set_size_std": 0.03748892252413059,
+      "noncontiguous_rate_mean": 0.0,
+      "noncontiguous_rate_std": 0.0,
+      "worst_class_coverage_mean": 0.8868622695842442,
+      "worst_class_coverage_std": 0.009998343795981076
+    }
+  },
+  {
+    "dataset": "APTOS",
+    "model": "RETFound x Ordinal CapsNet + LoRA",
+    "n_total": 9885,
+    "n_files_pooled": 15,
+    "alpha0.10_lac": {
+      "coverage_mean": 0.9026097511632611,
+      "coverage_std": 0.00710391853111702,
+      "set_size_mean": 1.2755816305887113,
+      "set_size_std": 0.019580657340671555,
+      "noncontiguous_rate_mean": 0.007363949018814453,
+      "noncontiguous_rate_std": 0.0012833300851429188,
+      "worst_class_coverage_mean": 0.6758267025930129,
+      "worst_class_coverage_std": 0.020500347784515906
+    },
+    "alpha0.10_aps": {
+      "coverage_mean": 0.9423022455998382,
+      "coverage_std": 0.00450630169284269,
+      "set_size_mean": 1.692049362735181,
+      "set_size_std": 0.020147675365822005,
+      "noncontiguous_rate_mean": 0.04883673882257737,
+      "noncontiguous_rate_std": 0.003615796983653478,
+      "worst_class_coverage_mean": 0.7886172820490704,
+      "worst_class_coverage_std": 0.018480705910230565
+    },
+    "alpha0.10_raps": {
+      "coverage_mean": 0.9392676512239531,
+      "coverage_std": 0.004917998959800915,
+      "set_size_mean": 1.6633218693101355,
+      "set_size_std": 0.018909481537492244,
+      "noncontiguous_rate_mean": 0.04964596398948011,
+      "noncontiguous_rate_std": 0.0041015823257047725,
+      "worst_class_coverage_mean": 0.7830633380394827,
+      "worst_class_coverage_std": 0.01681195916084476
+    },
+    "alpha0.10_ocp": {
+      "coverage_mean": 0.9430305482500504,
+      "coverage_std": 0.004330677939796779,
+      "set_size_mean": 1.7119158405826422,
+      "set_size_std": 0.021877907866486815,
+      "noncontiguous_rate_mean": 0.0,
+      "noncontiguous_rate_std": 0.0,
+      "worst_class_coverage_mean": 0.7943429956724609,
+      "worst_class_coverage_std": 0.017203603324133246
+    },
+    "alpha0.05_lac": {
+      "coverage_mean": 0.9481286668015375,
+      "coverage_std": 0.0047195937628165055,
+      "set_size_mean": 1.646894598422011,
+      "set_size_std": 0.024575210392864144,
+      "noncontiguous_rate_mean": 0.01808618248027516,
+      "noncontiguous_rate_std": 0.0016514935571076974,
+      "worst_class_coverage_mean": 0.8005623984393042,
+      "worst_class_coverage_std": 0.020976145938570837
+    },
+    "alpha0.05_aps": {
+      "coverage_mean": 0.9641513251062108,
+      "coverage_std": 0.002111752110167902,
+      "set_size_mean": 1.994214040056646,
+      "set_size_std": 0.02505809861946707,
+      "noncontiguous_rate_mean": 0.10030345943758849,
+      "noncontiguous_rate_std": 0.008388663990210488,
+      "worst_class_coverage_mean": 0.8550097469735827,
+      "worst_class_coverage_std": 0.014274546065003987
+    },
+    "alpha0.05_raps": {
+      "coverage_mean": 0.9610358082136354,
+      "coverage_std": 0.0021849079506372614,
+      "set_size_mean": 1.9669431519320253,
+      "set_size_std": 0.013066919375622283,
+      "noncontiguous_rate_mean": 0.112482298199474,
+      "noncontiguous_rate_std": 0.0067413847783640846,
+      "worst_class_coverage_mean": 0.8462562431562622,
+      "worst_class_coverage_std": 0.011647420727920596
+    },
+    "alpha0.05_ocp": {
+      "coverage_mean": 0.9657293141816711,
+      "coverage_std": 0.0020495933873217,
+      "set_size_mean": 2.0536516285656488,
+      "set_size_std": 0.02939431750787543,
+      "noncontiguous_rate_mean": 0.0,
+      "noncontiguous_rate_std": 0.0,
+      "worst_class_coverage_mean": 0.8604060993138323,
+      "worst_class_coverage_std": 0.005417416183671021
+    }
+  },
+  {
+    "dataset": "Messidor-2",
+    "model": "RETFound x Ordinal CapsNet",
+    "n_total": 1744,
+    "n_files_pooled": 5,
+    "alpha0.10_lac": {
+      "coverage_mean": 0.9087155963302752,
+      "coverage_std": 0.012235760246191872,
+      "set_size_mean": 2.327064220183486,
+      "set_size_std": 0.048699525675583874,
+      "noncontiguous_rate_mean": 0.05871559633027525,
+      "noncontiguous_rate_std": 0.0028462554233923913,
+      "worst_class_coverage_mean": 0.7275918964076858,
+      "worst_class_coverage_std": 0.04321072656590198
+    },
+    "alpha0.10_aps": {
+      "coverage_mean": 0.9034403669724771,
+      "coverage_std": 0.011127990340099269,
+      "set_size_mean": 2.4956422018348627,
+      "set_size_std": 0.04624503922466895,
+      "noncontiguous_rate_mean": 0.1282110091743119,
+      "noncontiguous_rate_std": 0.006422018348623849,
+      "worst_class_coverage_mean": 0.741047488762947,
+      "worst_class_coverage_std": 0.028801813976201216
+    },
+    "alpha0.10_raps": {
+      "coverage_mean": 0.9018348623853211,
+      "coverage_std": 0.012321445888590172,
+      "set_size_mean": 2.487844036697248,
+      "set_size_std": 0.04779565578297465,
+      "noncontiguous_rate_mean": 0.12935779816513765,
+      "noncontiguous_rate_std": 0.006380930157451173,
+      "worst_class_coverage_mean": 0.741047488762947,
+      "worst_class_coverage_std": 0.028801813976201216
+    },
+    "alpha0.10_ocp": {
+      "coverage_mean": 0.9009174311926605,
+      "coverage_std": 0.00841464969167162,
+      "set_size_mean": 2.539908256880734,
+      "set_size_std": 0.05937842614783274,
+      "noncontiguous_rate_mean": 0.0,
+      "noncontiguous_rate_std": 0.0,
+      "worst_class_coverage_mean": 0.682094543243654,
+      "worst_class_coverage_std": 0.03979094760855138
+    },
+    "alpha0.05_lac": {
+      "coverage_mean": 0.9538990825688073,
+      "coverage_std": 0.009157093934714288,
+      "set_size_mean": 2.7793577981651376,
+      "set_size_std": 0.07514959969833698,
+      "noncontiguous_rate_mean": 0.05802752293577982,
+      "noncontiguous_rate_std": 0.006050874292785723,
+      "worst_class_coverage_mean": 0.8029344193817878,
+      "worst_class_coverage_std": 0.07637842327082518
+    },
+    "alpha0.05_aps": {
+      "coverage_mean": 0.9543577981651377,
+      "coverage_std": 0.0065437351457280375,
+      "set_size_mean": 2.9738532110091738,
+      "set_size_std": 0.06258316577696259,
+      "noncontiguous_rate_mean": 0.14220183486238533,
+      "noncontiguous_rate_std": 0.009372851716377317,
+      "worst_class_coverage_mean": 0.824591503267974,
+      "worst_class_coverage_std": 0.03986023951908973
+    },
+    "alpha0.05_raps": {
+      "coverage_mean": 0.9513761467889907,
+      "coverage_std": 0.0077981651376146915,
+      "set_size_mean": 2.95045871559633,
+      "set_size_std": 0.07633308701595978,
+      "noncontiguous_rate_mean": 0.14357798165137614,
+      "noncontiguous_rate_std": 0.009768596072957282,
+      "worst_class_coverage_mean": 0.7892156862745098,
+      "worst_class_coverage_std": 0.05060613420666498
+    },
+    "alpha0.05_ocp": {
+      "coverage_mean": 0.9506880733944956,
+      "coverage_std": 0.0041028770229353815,
+      "set_size_mean": 3.000688073394495,
+      "set_size_std": 0.0496049539896449,
+      "noncontiguous_rate_mean": 0.0,
+      "noncontiguous_rate_std": 0.0,
+      "worst_class_coverage_mean": 0.7441176470588236,
+      "worst_class_coverage_std": 0.026581306415245417
+    }
+  },
+  {
+    "dataset": "Messidor-2",
+    "model": "RETFound x MLP + K-1 sigmoid",
+    "n_total": 1744,
+    "n_files_pooled": 5,
+    "alpha0.10_lac": {
+      "coverage_mean": 0.9038990825688075,
+      "coverage_std": 0.012036368590276996,
+      "set_size_mean": 2.2997706422018345,
+      "set_size_std": 0.04983243532212559,
+      "noncontiguous_rate_mean": 0.009174311926605495,
+      "noncontiguous_rate_std": 0.0016218045440058412,
+      "worst_class_coverage_mean": 0.5991421568627451,
+      "worst_class_coverage_std": 0.05802201073157385
+    },
+    "alpha0.10_aps": {
+      "coverage_mean": 0.9020642201834862,
+      "coverage_std": 0.008721629973317253,
+      "set_size_mean": 2.4839449541284404,
+      "set_size_std": 0.06384638922749752,
+      "noncontiguous_rate_mean": 0.038073394495412846,
+      "noncontiguous_rate_std": 0.007757584644627418,
+      "worst_class_coverage_mean": 0.7025326797385621,
+      "worst_class_coverage_std": 0.03451195465173696
+    },
+    "alpha0.10_raps": {
+      "coverage_mean": 0.9011467889908257,
+      "coverage_std": 0.008439619033474344,
+      "set_size_mean": 2.4961009174311926,
+      "set_size_std": 0.06797895845797361,
+      "noncontiguous_rate_mean": 0.03830275229357798,
+      "noncontiguous_rate_std": 0.008383333432338127,
+      "worst_class_coverage_mean": 0.6962826797385622,
+      "worst_class_coverage_std": 0.0391820559773932
+    },
+    "alpha0.10_ocp": {
+      "coverage_mean": 0.9064220183486238,
+      "coverage_std": 0.006511499801182755,
+      "set_size_mean": 2.5096330275229355,
+      "set_size_std": 0.05727794866922074,
+      "noncontiguous_rate_mean": 0.0,
+      "noncontiguous_rate_std": 0.0,
+      "worst_class_coverage_mean": 0.6865196078431371,
+      "worst_class_coverage_std": 0.04113267979568268
+    },
+    "alpha0.05_lac": {
+      "coverage_mean": 0.9580275229357799,
+      "coverage_std": 0.007696312722735073,
+      "set_size_mean": 2.9073394495412845,
+      "set_size_std": 0.07653955299799958,
+      "noncontiguous_rate_mean": 0.00504587155963303,
+      "noncontiguous_rate_std": 0.0005618095740328764,
+      "worst_class_coverage_mean": 0.812091503267974,
+      "worst_class_coverage_std": 0.05016100354078403
+    },
+    "alpha0.05_aps": {
+      "coverage_mean": 0.9490825688073394,
+      "coverage_std": 0.006749513288789971,
+      "set_size_mean": 2.9947247706422018,
+      "set_size_std": 0.0703818328148052,
+      "noncontiguous_rate_mean": 0.032568807339449536,
+      "noncontiguous_rate_std": 0.003448003756507572,
+      "worst_class_coverage_mean": 0.7871954842543077,
+      "worst_class_coverage_std": 0.04663245300849564
+    },
+    "alpha0.05_raps": {
+      "coverage_mean": 0.9483944954128439,
+      "coverage_std": 0.006880733944954106,
+      "set_size_mean": 3.0020642201834864,
+      "set_size_std": 0.06602716664467209,
+      "noncontiguous_rate_mean": 0.03417431192660551,
+      "noncontiguous_rate_std": 0.0043153412206942176,
+      "worst_class_coverage_mean": 0.7552287581699347,
+      "worst_class_coverage_std": 0.04414063792131515
+    },
+    "alpha0.05_ocp": {
+      "coverage_mean": 0.9493119266055047,
+      "coverage_std": 0.008377056131995285,
+      "set_size_mean": 3.032339449541285,
+      "set_size_std": 0.0796152423804093,
+      "noncontiguous_rate_mean": 0.0,
+      "noncontiguous_rate_std": 0.0,
+      "worst_class_coverage_mean": 0.7379084967320262,
+      "worst_class_coverage_std": 0.07034574665136581
+    }
+  },
+  {
+    "dataset": "Messidor-2",
+    "model": "DINOv2  x Ordinal CapsNet",
+    "n_total": 1744,
+    "n_files_pooled": 5,
+    "alpha0.10_lac": {
+      "coverage_mean": 0.9027522935779817,
+      "coverage_std": 0.007892041529396893,
+      "set_size_mean": 1.8536697247706422,
+      "set_size_std": 0.026743552013116338,
+      "noncontiguous_rate_mean": 0.041055045871559635,
+      "noncontiguous_rate_std": 0.0030254371463928576,
+      "worst_class_coverage_mean": 0.6088235294117649,
+      "worst_class_coverage_std": 0.05164639546441415
+    },
+    "alpha0.10_aps": {
+      "coverage_mean": 0.894954128440367,
+      "coverage_std": 0.004733891614805136,
+      "set_size_mean": 2.0314220183486236,
+      "set_size_std": 0.030163820592245195,
+      "noncontiguous_rate_mean": 0.09908256880733946,
+      "noncontiguous_rate_std": 0.010624986075138053,
+      "worst_class_coverage_mean": 0.6539215686274511,
+      "worst_class_coverage_std": 0.05334310432089072
+    },
+    "alpha0.10_raps": {
+      "coverage_mean": 0.8958715596330276,
+      "coverage_std": 0.007925299331729802,
+      "set_size_mean": 2.036238532110092,
+      "set_size_std": 0.03788640941705825,
+      "noncontiguous_rate_mean": 0.10160550458715593,
+      "noncontiguous_rate_std": 0.005646116341784937,
+      "worst_class_coverage_mean": 0.6539215686274511,
+      "worst_class_coverage_std": 0.05334310432089072
+    },
+    "alpha0.10_ocp": {
+      "coverage_mean": 0.891743119266055,
+      "coverage_std": 0.0057385302766957864,
+      "set_size_mean": 2.0327981651376144,
+      "set_size_std": 0.03738321038674938,
+      "noncontiguous_rate_mean": 0.0,
+      "noncontiguous_rate_std": 0.0,
+      "worst_class_coverage_mean": 0.6310457516339869,
+      "worst_class_coverage_std": 0.029851469925932624
+    },
+    "alpha0.05_lac": {
+      "coverage_mean": 0.9529816513761468,
+      "coverage_std": 0.008551078845095057,
+      "set_size_mean": 2.3538990825688075,
+      "set_size_std": 0.07157506890682022,
+      "noncontiguous_rate_mean": 0.05022935779816513,
+      "noncontiguous_rate_std": 0.004191666716169075,
+      "worst_class_coverage_mean": 0.688562091503268,
+      "worst_class_coverage_std": 0.06129171871634078
+    },
+    "alpha0.05_aps": {
+      "coverage_mean": 0.9502293577981652,
+      "coverage_std": 0.007865334036459724,
+      "set_size_mean": 2.6077981651376145,
+      "set_size_std": 0.05941208186692027,
+      "noncontiguous_rate_mean": 0.14747706422018347,
+      "noncontiguous_rate_std": 0.011296890234885087,
+      "worst_class_coverage_mean": 0.665686274509804,
+      "worst_class_coverage_std": 0.06798328240322928
+    },
+    "alpha0.05_raps": {
+      "coverage_mean": 0.9513761467889909,
+      "coverage_std": 0.008569514537738248,
+      "set_size_mean": 2.6227064220183487,
+      "set_size_std": 0.06879969376481858,
+      "noncontiguous_rate_mean": 0.1477064220183486,
+      "noncontiguous_rate_std": 0.007121181053330303,
+      "worst_class_coverage_mean": 0.665686274509804,
+      "worst_class_coverage_std": 0.06798328240322928
+    },
+    "alpha0.05_ocp": {
+      "coverage_mean": 0.9467889908256881,
+      "coverage_std": 0.005963302752293564,
+      "set_size_mean": 2.569724770642202,
+      "set_size_std": 0.036267553122278924,
+      "noncontiguous_rate_mean": 0.0,
+      "noncontiguous_rate_std": 0.0,
+      "worst_class_coverage_mean": 0.6539215686274511,
+      "worst_class_coverage_std": 0.05334310432089072
+    }
+  },
+  {
+    "dataset": "Messidor-2",
+    "model": "DINOv2  x MLP + K-1 sigmoid",
+    "n_total": 1744,
+    "n_files_pooled": 5,
+    "alpha0.10_lac": {
+      "coverage_mean": 0.9029816513761469,
+      "coverage_std": 0.006222321085436029,
+      "set_size_mean": 1.8334862385321102,
+      "set_size_std": 0.022123221195940384,
+      "noncontiguous_rate_mean": 0.006422018348623859,
+      "noncontiguous_rate_std": 0.0013761467889908136,
+      "worst_class_coverage_mean": 0.6823529411764706,
+      "worst_class_coverage_std": 0.019211684257123007
+    },
+    "alpha0.10_aps": {
+      "coverage_mean": 0.9043577981651374,
+      "coverage_std": 0.009960573738811216,
+      "set_size_mean": 2.0309633027522933,
+      "set_size_std": 0.06811579084824543,
+      "noncontiguous_rate_mean": 0.037385321100917454,
+      "noncontiguous_rate_std": 0.00473389161480512,
+      "worst_class_coverage_mean": 0.615032679738562,
+      "worst_class_coverage_std": 0.0757831792974418
+    },
+    "alpha0.10_raps": {
+      "coverage_mean": 0.9052752293577981,
+      "coverage_std": 0.008445849834643096,
+      "set_size_mean": 2.026834862385321,
+      "set_size_std": 0.0636714763262762,
+      "noncontiguous_rate_mean": 0.03577981651376148,
+      "noncontiguous_rate_std": 0.00425395343830078,
+      "worst_class_coverage_mean": 0.592156862745098,
+      "worst_class_coverage_std": 0.06803039378242749
+    },
+    "alpha0.10_ocp": {
+      "coverage_mean": 0.9025229357798166,
+      "coverage_std": 0.0125204991412442,
+      "set_size_mean": 2.0155963302752293,
+      "set_size_std": 0.06652404222983159,
+      "noncontiguous_rate_mean": 0.0,
+      "noncontiguous_rate_std": 0.0,
+      "worst_class_coverage_mean": 0.6032679738562091,
+      "worst_class_coverage_std": 0.07445244897201643
+    },
+    "alpha0.05_lac": {
+      "coverage_mean": 0.951834862385321,
+      "coverage_std": 0.009918233169926438,
+      "set_size_mean": 2.3325688073394497,
+      "set_size_std": 0.07577490154441188,
+      "noncontiguous_rate_mean": 0.007798165137614688,
+      "noncontiguous_rate_std": 0.001834862385321076,
+      "worst_class_coverage_mean": 0.6823529411764706,
+      "worst_class_coverage_std": 0.019211684257123007
+    },
+    "alpha0.05_aps": {
+      "coverage_mean": 0.9548165137614678,
+      "coverage_std": 0.006264449671443907,
+      "set_size_mean": 2.556880733944954,
+      "set_size_std": 0.05729172325686557,
+      "noncontiguous_rate_mean": 0.05848623853211008,
+      "noncontiguous_rate_std": 0.005280213042762082,
+      "worst_class_coverage_mean": 0.7379084967320262,
+      "worst_class_coverage_std": 0.05970293985186529
+    },
+    "alpha0.05_raps": {
+      "coverage_mean": 0.9545871559633028,
+      "coverage_std": 0.007965025391828152,
+      "set_size_mean": 2.5408256880733946,
+      "set_size_std": 0.060245618520882706,
+      "noncontiguous_rate_mean": 0.04220183486238531,
+      "noncontiguous_rate_std": 0.0076551923248984535,
+      "worst_class_coverage_mean": 0.7212418300653595,
+      "worst_class_coverage_std": 0.038661663846196744
+    },
+    "alpha0.05_ocp": {
+      "coverage_mean": 0.953669724770642,
+      "coverage_std": 0.0072746566638319824,
+      "set_size_mean": 2.5672018348623853,
+      "set_size_std": 0.08871908287979198,
+      "noncontiguous_rate_mean": 0.0,
+      "noncontiguous_rate_std": 0.0,
+      "worst_class_coverage_mean": 0.7212418300653595,
+      "worst_class_coverage_std": 0.038661663846196744
+    }
+  }
+]

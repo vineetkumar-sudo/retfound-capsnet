@@ -269,6 +269,123 @@ def evaluate_conformal_ccp(
     }
 
 
+def is_contiguous(sets: np.ndarray) -> np.ndarray:
+    """Per-row: is the prediction set a contiguous run of grades?
+
+    LAC/APS/RAPS treat the K grades as an unordered label set, so they can
+    return sets like {0, 3} that skip an intermediate grade. Under an ordinal
+    scale such a set is semantically incoherent -- it asserts the patient is
+    either healthy or severe but definitely not moderate. This measures how
+    often that happens.
+
+    An empty set is reported as contiguous (vacuously); the builders here
+    always return at least one class.
+    """
+    n, k = sets.shape
+    out = np.ones(n, dtype=bool)
+    for i in range(n):
+        idx = np.flatnonzero(sets[i])
+        if idx.size > 1:
+            out[i] = bool(idx[-1] - idx[0] + 1 == idx.size)
+    return out
+
+
+def _ordinal_nesting_order(probs: np.ndarray) -> np.ndarray:
+    """Order in which grades enter a mode-anchored contiguous interval.
+
+    Starting from the arg-max grade, repeatedly absorb whichever neighbour of
+    the current interval carries more probability mass. This yields a strictly
+    nested family of CONTIGUOUS intervals I_1 subset I_2 subset ... subset I_K
+    with |I_j| = j, which is what makes the resulting conformal sets intervals
+    by construction rather than by post-hoc repair.
+
+    Returns:
+        (N, K) int array; row i lists grades in the order they are absorbed.
+    """
+    n, k = probs.shape
+    order = np.zeros((n, k), dtype=np.int64)
+    for i in range(n):
+        lo = hi = int(np.argmax(probs[i]))
+        seq = [lo]
+        while len(seq) < k:
+            can_left, can_right = lo - 1 >= 0, hi + 1 <= k - 1
+            # Ties break left (towards the lower grade), which is the
+            # safety-conservative direction for a screening task.
+            if can_left and (not can_right or probs[i, lo - 1] >= probs[i, hi + 1]):
+                lo -= 1
+                seq.append(lo)
+            else:
+                hi += 1
+                seq.append(hi)
+        order[i] = seq
+    return order
+
+
+def ocp_scores(
+    probs: np.ndarray, y: np.ndarray, rng: np.random.Generator | None = None
+) -> np.ndarray:
+    """OCP (Ordinal Contiguous Prediction) nonconformity score.
+
+    Structurally identical to APS, but the classes are accumulated in the
+    ordinal nesting order of `_ordinal_nesting_order` instead of in
+    descending-probability order. The score for (x, y) is the probability
+    mass of the smallest contiguous mode-anchored interval containing y,
+    randomised at the boundary exactly as in Romano (2020).
+
+    Because the score is a fixed measurable function of (x, y) evaluated
+    identically on calibration and test points, split-conformal exchangeability
+    -- and therefore the 1-alpha marginal coverage guarantee -- carries over
+    unchanged from APS. Contiguity is obtained for free from the nesting rule;
+    it is not an extra constraint that has to be paid for in coverage.
+    """
+    rng = rng or np.random.default_rng(0)
+    n, k = probs.shape
+    order = _ordinal_nesting_order(probs)
+    sorted_probs = np.take_along_axis(probs, order, axis=1)
+    cum = np.cumsum(sorted_probs, axis=1)
+
+    rank_of_y = np.zeros(n, dtype=np.int64)
+    for i in range(n):
+        rank_of_y[i] = int(np.where(order[i] == y[i])[0][0])
+
+    cum_at_y = cum[np.arange(n), rank_of_y]
+    p_at_y = sorted_probs[np.arange(n), rank_of_y]
+    u = rng.random(n)
+    return cum_at_y - u * p_at_y
+
+
+def build_prediction_sets_ocp(
+    probs: np.ndarray, q_hat: float, rng: np.random.Generator | None = None
+) -> np.ndarray:
+    """OCP prediction sets: always contiguous intervals over the grade scale.
+
+    Mirrors `build_prediction_sets_aps` so that the constructed set is the
+    q_hat sublevel set of `ocp_scores` under the same uniform draw, but walks
+    the ordinal nesting order, so every returned set is an interval [a, b].
+    """
+    rng = rng or np.random.default_rng(0)
+    n, k = probs.shape
+    order = _ordinal_nesting_order(probs)
+    sorted_probs = np.take_along_axis(probs, order, axis=1)
+    cum = np.cumsum(sorted_probs, axis=1)
+
+    sets = np.zeros((n, k), dtype=bool)
+    u = rng.random(n)
+    for i in range(n):
+        rank = int(np.searchsorted(cum[i], q_hat, side="left"))
+        if rank == k:
+            sets[i, :] = True
+            continue
+        keep_ranks = list(range(rank))
+        if (cum[i, rank] - u[i] * sorted_probs[i, rank]) <= q_hat:
+            keep_ranks.append(rank)
+        if not keep_ranks:
+            keep_ranks = [0]
+        for r in keep_ranks:
+            sets[i, order[i, r]] = True
+    return sets
+
+
 def evaluate_conformal(
     probs: np.ndarray,
     y: np.ndarray,
@@ -291,7 +408,7 @@ def evaluate_conformal(
         (K-vector), set_size_histogram (K+1-vector of counts), q_hat, alpha,
         n_cal, n_test.
     """
-    assert score in ("lac", "aps", "raps")
+    assert score in ("lac", "aps", "raps", "ocp")
     rng = np.random.default_rng(split_seed)
     n = len(y)
     idx = rng.permutation(n)
@@ -309,10 +426,14 @@ def evaluate_conformal(
         cal_scores = aps_scores(probs_cal, y_cal, rng=rng)
         q_hat = _quantile_hi(cal_scores, alpha)
         sets = build_prediction_sets_aps(probs_test, q_hat, rng=rng)
-    else:  # "raps"
+    elif score == "raps":
         cal_scores = raps_scores(probs_cal, y_cal, k_reg=1, lambda_reg=0.01, rng=rng)
         q_hat = _quantile_hi(cal_scores, alpha)
         sets = build_prediction_sets_raps(probs_test, q_hat, k_reg=1, lambda_reg=0.01, rng=rng)
+    else:  # "ocp"
+        cal_scores = ocp_scores(probs_cal, y_cal, rng=rng)
+        q_hat = _quantile_hi(cal_scores, alpha)
+        sets = build_prediction_sets_ocp(probs_test, q_hat, rng=rng)
 
     covered = sets[np.arange(len(y_test)), y_test]                   # (N_test,)
     marginal = float(covered.mean())
@@ -339,5 +460,6 @@ def evaluate_conformal(
         "mean_set_size": mean_set_size,
         "class_conditional_coverage": ccov,
         "set_size_histogram": size_hist,
+        "noncontiguous_rate": float(1.0 - is_contiguous(sets).mean()),
         "split_seed": split_seed,
     }
