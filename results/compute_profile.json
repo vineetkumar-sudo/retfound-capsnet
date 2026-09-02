@@ -1,0 +1,216 @@
+{
+  "gpu": "NVIDIA A100-SXM4-40GB",
+  "torch": "2.11.0+cu130",
+  "rows": [
+    {
+      "component": "Ordinal CapsNet head",
+      "tier": "frozen",
+      "input": "1024-d feature",
+      "trainable": 295168,
+      "frozen": 0,
+      "total": 295168,
+      "fwd_gflops_per_sample": 0.000589824,
+      "sweep": [
+        {
+          "images_per_s": 153.07225350248808,
+          "ms_per_step": 6.532862599973062,
+          "peak_mem_mib": 23.14111328125,
+          "batch_size": 1
+        },
+        {
+          "images_per_s": 1191.4067346782367,
+          "ms_per_step": 6.714751366719914,
+          "peak_mem_mib": 23.21923828125,
+          "batch_size": 8
+        },
+        {
+          "images_per_s": 4706.750656183776,
+          "ms_per_step": 6.798745533281665,
+          "peak_mem_mib": 26.84326171875,
+          "batch_size": 32
+        },
+        {
+          "images_per_s": 9588.982977845053,
+          "ms_per_step": 6.674326166588192,
+          "peak_mem_mib": 32.373046875,
+          "batch_size": 64
+        }
+      ]
+    },
+    {
+      "component": "MLP + K-1 sigmoid head",
+      "tier": "frozen",
+      "input": "1024-d feature",
+      "trainable": 329220,
+      "frozen": 0,
+      "total": 329220,
+      "fwd_gflops_per_sample": 0.000657408,
+      "sweep": [
+        {
+          "images_per_s": 460.2378435622383,
+          "ms_per_step": 2.1727895999598936,
+          "peak_mem_mib": 26.0458984375,
+          "batch_size": 1
+        },
+        {
+          "images_per_s": 3536.013189311278,
+          "ms_per_step": 2.2624350000114646,
+          "peak_mem_mib": 26.0732421875,
+          "batch_size": 8
+        },
+        {
+          "images_per_s": 14163.968442864112,
+          "ms_per_step": 2.259253833350764,
+          "peak_mem_mib": 26.16748046875,
+          "batch_size": 32
+        },
+        {
+          "images_per_s": 28535.970081709143,
+          "ms_per_step": 2.2427833999245195,
+          "peak_mem_mib": 26.29345703125,
+          "batch_size": 64
+        }
+      ]
+    },
+    {
+      "component": "RETFound ViT-L/16 (frozen)",
+      "tier": "frozen",
+      "input": "224x224x3",
+      "trainable": 0,
+      "frozen": 304326632,
+      "total": 304326632,
+      "fwd_gflops_per_sample": 123.109425152,
+      "sweep": [
+        {
+          "images_per_s": 71.6584496879816,
+          "ms_per_step": 13.955088399961824,
+          "peak_mem_mib": 1227.98828125,
+          "batch_size": 1
+        },
+        {
+          "images_per_s": 124.04599039174212,
+          "ms_per_step": 64.49220950016752,
+          "peak_mem_mib": 1297.3984375,
+          "batch_size": 8
+        },
+        {
+          "images_per_s": 138.21327940362286,
+          "ms_per_step": 231.52623349997157,
+          "peak_mem_mib": 1533.0546875,
+          "batch_size": 32
+        },
+        {
+          "images_per_s": 143.72859463939673,
+          "ms_per_step": 445.283697099876,
+          "peak_mem_mib": 1848.6796875,
+          "batch_size": 64
+        }
+      ]
+    },
+    {
+      "component": "DINOv2 ViT-L/14 (frozen)",
+      "tier": "frozen",
+      "input": "224x224x3",
+      "trainable": 0,
+      "frozen": 304368640,
+      "total": 304368640,
+      "fwd_gflops_per_sample": 162.023964672,
+      "sweep": [
+        {
+          "images_per_s": 52.51116559330362,
+          "ms_per_step": 19.04356890008785,
+          "peak_mem_mib": 1229.90234375,
+          "batch_size": 1
+        },
+        {
+          "images_per_s": 88.98869346586291,
+          "ms_per_step": 89.89906120004889,
+          "peak_mem_mib": 1310.52734375,
+          "batch_size": 8
+        },
+        {
+          "images_per_s": 105.32916501459253,
+          "ms_per_step": 303.8094908999483,
+          "peak_mem_mib": 1589.33984375,
+          "batch_size": 32
+        },
+        {
+          "images_per_s": 106.9737005315964,
+          "ms_per_step": 598.2778915000381,
+          "peak_mem_mib": 1963.08984375,
+          "batch_size": 64
+        }
+      ]
+    },
+    {
+      "component": "RETFound+LoRA r=8 + Ordinal head",
+      "tier": "lora",
+      "input": "224x224x3",
+      "trainable": 1081600,
+      "frozen": 303301632,
+      "total": 304383232,
+      "fwd_gflops_per_sample": 123.417821184,
+      "sweep": [
+        {
+          "images_per_s": 14.045752757984728,
+          "ms_per_step": 71.19589937474302,
+          "peak_mem_mib": 1446.4072265625,
+          "batch_size": 1
+        },
+        {
+          "images_per_s": 58.439090486756406,
+          "ms_per_step": 136.89466987534615,
+          "peak_mem_mib": 2946.68603515625,
+          "batch_size": 8
+        },
+        {
+          "images_per_s": 63.24969981919477,
+          "ms_per_step": 505.93125487512225,
+          "peak_mem_mib": 8105.724609375,
+          "batch_size": 32
+        },
+        {
+          "images_per_s": 65.40820501785531,
+          "ms_per_step": 978.470514250148,
+          "peak_mem_mib": 15018.873046875,
+          "batch_size": 64
+        }
+      ]
+    },
+    {
+      "component": "RETFound full fine-tune + head",
+      "tier": "full-ft",
+      "input": "224x224x3",
+      "trainable": 304383232,
+      "frozen": 0,
+      "total": 304383232,
+      "fwd_gflops_per_sample": 123.417821184,
+      "sweep": [
+        {
+          "images_per_s": 15.52924726795358,
+          "ms_per_step": 64.39462150001418,
+          "peak_mem_mib": 5833.16845703125,
+          "batch_size": 1
+        },
+        {
+          "images_per_s": 37.55399154974212,
+          "ms_per_step": 213.02662299967778,
+          "peak_mem_mib": 7244.99169921875,
+          "batch_size": 8
+        },
+        {
+          "images_per_s": 43.15085266105134,
+          "ms_per_step": 741.5844189999916,
+          "peak_mem_mib": 14960.87255859375,
+          "batch_size": 32
+        },
+        {
+          "images_per_s": 44.89014355273086,
+          "ms_per_step": 1425.7027252501757,
+          "peak_mem_mib": 25292.64306640625,
+          "batch_size": 64
+        }
+      ]
+    }
+  ]
+}
