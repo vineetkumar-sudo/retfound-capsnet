@@ -205,8 +205,12 @@ def write_reliability_figure(
     selected = [(mdl, m) for ds, mdl, m in rows if ds == dataset and "LoRA" not in mdl]
     if not selected:
         return
-    fig, axes = plt.subplots(2, 2, figsize=(9.5, 8.5), sharex=True, sharey=True)
+    # Reviewer M1: with sharex/sharey matplotlib suppresses the tick VALUES on
+    # the inner panels, so two of the four sub-plots showed no axis numbers.
+    # Every panel now carries explicit ticks and labels.
+    fig, axes = plt.subplots(2, 2, figsize=(9.5, 8.5))
     axes = axes.ravel()
+    ticks = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
     for ax, (name, m) in zip(axes, selected):
         bins = m["reliability_bins"]
         xs = [b["mean_conf"] for b in bins if b["count"] > 0]
@@ -218,9 +222,12 @@ def write_reliability_figure(
         for x, y, w in zip(xs, ys, ws):
             ax.plot([x, x], [x, y], color="#C26A6A", alpha=0.5, linewidth=1)
         ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+        ax.set_xticks(ticks); ax.set_yticks(ticks)
+        ax.set_xticklabels([f"{t:.1f}" for t in ticks], fontsize=8)
+        ax.set_yticklabels([f"{t:.1f}" for t in ticks], fontsize=8)
         ax.set_title(f"{name}\nECE={m['ece']:.3f}  MCE={m['mce']:.3f}", fontsize=10)
-        ax.set_xlabel("Confidence")
-        ax.set_ylabel("Accuracy")
+        ax.set_xlabel("Mean predicted confidence", fontsize=9)
+        ax.set_ylabel("Empirical accuracy", fontsize=9)
         ax.grid(True, alpha=0.3)
     fig.suptitle(f"Reliability diagrams on {dataset}\n"
                  f"(10 equal-mass bins; dashed = perfect calibration; bubble size = bin weight)",
