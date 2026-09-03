@@ -597,6 +597,68 @@ A reasonable objection to the $224$ crop is that downsampling a multi-megapixel 
 Quadrupling the pixel count makes grading \emph{worse}, by $-0.0094$ QWK for the capsule head and $-0.0079$ for the MLP head. The effect is consistent across all three seeds and far outside seed noise (across-seed standard deviations $\leq 0.0015$ throughout), and it appears with both heads, so it is a property of the backbone rather than of the ordinal head. The likely mechanism is that RETFound was pretrained at $224$: running it at $448$ forces its learned position embedding onto a token grid it never saw, and that distribution mismatch costs more than the recovered lesion detail gains. The practical reading is not that fine detail is irrelevant to DR grading, but that it cannot be recovered by feeding a $224$-pretrained ViT larger inputs; a backbone pretrained at the target resolution would be needed to test the lesion-detail hypothesis properly.
 
 
+
+
+\subsection{Computational complexity}
+\label{sec:compute}
+\begin{table}[!t]
+\centering
+\caption{Complexity on one NVIDIA A100-SXM4-40GB. Forward FLOPs are traced per image with \texttt{torch.utils.flop\_counter} (exact op counts, not analytic estimates). Peak memory and throughput are measured at the largest batch that fits; throughput is a training step for trainable rows and a no-grad forward for the frozen backbones.}
+\label{tab:compute}
+\begin{tabular}{lcccc}
+\toprule
+Component & Trainable & FLOPs/img & Peak (MiB) & img/s \\
+\midrule
+Ordinal CapsNet head & 295{,}168 & 0.59\,MFLOP & 32 & 9{,}589 \\
+MLP + $K{-}1$ head & 329{,}220 & 0.66\,MFLOP & 26 & 28{,}536 \\
+RETFound ViT-L/16 (frozen) & 0 & 123.1\,GFLOP & 1{,}849 & 144 \\
+DINOv2 ViT-L/14 (frozen) & 0 & 162.0\,GFLOP & 1{,}963 & 107 \\
+RETFound $+$ LoRA $r{=}8$ & 1{,}081{,}600 & 123.4\,GFLOP & 15{,}019 & 65 \\
+RETFound full fine-tune & 304{,}383{,}232 & 123.4\,GFLOP & 25{,}293 & 45 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Reviewers noted that the submitted paper timed everything on a consumer laptop and asked for FLOPs, peak GPU memory and throughput on a server GPU. Three things follow from the measurement.
+
+First, the head choice is computationally irrelevant. The backbone costs about 208{,}722 times the FLOPs of the head it feeds ($123.1$\,GFLOP against $0.59$\,MFLOP per image), so the capsule-versus-MLP debate that occupies much of this paper is, in compute terms, noise on top of the backbone decision. The ``backbone dominates the head'' finding holds on compute as well as on QWK, by five orders of magnitude.
+
+Second, capsule routing is $3.0$ times \emph{slower} to train than the MLP head despite having fewer parameters and fewer FLOPs ($9{,}589$ against $28{,}536$ images/s). Three sequential routing iterations serialise into many small kernel launches that the GPU cannot amortise --- a real cost that a parameter count hides entirely.
+
+Third, DINOv2's accuracy advantage is not free: patch-14 tokenisation yields 257 tokens against RETFound's 197, costing $162.0$\,GFLOP against $123.1$\,GFLOP per image and running $26$\% slower. LoRA against full fine-tuning is $281$ times fewer trainable parameters, $1.68$ times less peak memory ($14.7$ against $24.7$\,GiB) and $1.46$ times the throughput.
+
+A caveat that matters for the efficiency claim. The frozen tier does not benefit from a server GPU at all: at $\sim\!10^5$ parameters over 1024-dimensional vectors the step is bound by Python and kernel-launch latency rather than arithmetic, and a full 5-fold frozen run takes $363$\,s on the A100 against $385$\,s on CPU and $\approx\!115$\,s on the M-series laptop used for the original experiments. The laptop is the fastest of the three. The A100 matters only for the LoRA and fine-tuning tiers.
+
+\subsection{Domain adaptation for APTOS $\to$ Messidor-2}
+\label{sec:uda}
+\begin{table}[!t]
+\centering
+\caption{Label-free adaptation for APTOS $\to$ Messidor-2, Ordinal CapsNet on frozen RETFound features, 5 folds. Feature alignment maps the target into the source space; label correction reweights or reassigns the decoded posterior. Only the two oracle rows use target labels.}
+\label{tab:uda}
+\begin{tabular}{llccc}
+\toprule
+Align & Label correction & QWK & rDR sens. & rDR spec. \\
+\midrule
+--- & --- & $0.0132 \pm 0.0090$ & 0.005 & 1.000 \\
+z-score & --- & $0.1420 \pm 0.0165$ & 0.502 & 0.633 \\
+CORAL & --- & $0.1742 \pm 0.0211$ & 0.467 & 0.687 \\
+--- & BBSE & $0.0494 \pm 0.0236$ & 0.179 & 0.858 \\
+--- & EM & $0.0005 \pm 0.0010$ & 0.000 & 1.000 \\
+CORAL & EM & $0.1399 \pm 0.0384$ & 0.496 & 0.653 \\
+--- & rank calib. & $0.2266 \pm 0.0354$ & 0.531 & 0.638 \\
+CORAL & rank calib. & $0.1860 \pm 0.0105$ & 0.523 & 0.636 \\
+--- & oracle prior & $0.0015 \pm 0.0013$ & 0.001 & 1.000 \\
+--- & rank calib. (oracle prior) & $0.2619 \pm 0.0414$ & 0.384 & 0.781 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Reviewers asked whether standard unsupervised domain adaptation would rescue this transfer, given that our post-hoc correction leaves it below clinical usefulness. We tested the adaptations that apply when the backbone is frozen and features are cached, factorised into the two shifts involved: second-order feature alignment (CORAL, in the correlation-alignment sense of Sun and Saenko \cite{ref:coral_da}, not the ordinal-regression method of the same acronym) and per-domain standardisation for covariate shift; and BBSE \cite{ref:bbse}, EM \cite{ref:saerens} and our rank calibration for label shift.
+
+No adaptation beats what the paper already does. Feature alignment is a real effect --- CORAL alone lifts QWK from $0.0132$ to $0.1742$, a factor of $13$ --- but it remains below rank calibration at $0.2266$, and stacking the two is worse than either ($0.1860$). Every row stays far below the $\approx 0.60$ clinical-agreement threshold, so the conclusion is unchanged; it is now supported rather than asserted.
+
+The instructive failure is posterior reweighting. EM and BBSE on unaligned features score $0.0005$ and $0.0494$, no better than doing nothing, and even supplying the \emph{true} target prior reaches only $0.0015$. The decoded posterior has saturated at $P(y{=}0) \approx 1$, so multiplicative reweighting cannot move the arg-max however extreme the ratio. Rank calibration works precisely because it uses only the ordering and reassigns labels outright. This is the mechanistic reason our correction is the right tool for this failure mode, and why the reviewers' suggested alternatives underperform it here.
+
 \subsection{IDRiD under both backbones}
 \label{sec:idrid-dinov2}
 \begin{table}[!t]
@@ -759,6 +821,9 @@ The APTOS-2019 dataset is available through the Kaggle competition ``APTOS 2019 
 
     \bibitem{ref:coral}
     W.~Cao, V.~Mirjalili, and S.~Raschka, ``Rank consistent ordinal regression for neural networks with application to age estimation,'' \emph{Pattern Recognition Letters}, vol.\ 140, pp.\ 325--331, 2020.
+
+    \bibitem{ref:coral_da}
+    B.~Sun and K.~Saenko, ``Deep CORAL: Correlation alignment for deep domain adaptation,'' in \emph{European Conf.\ on Computer Vision (ECCV) Workshops}, 2016, pp.\ 443--450.
 
     \bibitem{ref:corn}
     X.~Shi, W.~Cao, and S.~Raschka, ``Deep neural networks for rank-consistent ordinal regression based on conditional probabilities,'' \emph{Pattern Analysis and Applications}, vol.\ 26, no.\ 3, pp.\ 941--955, 2023.
