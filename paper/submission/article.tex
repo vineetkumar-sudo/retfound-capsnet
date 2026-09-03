@@ -520,6 +520,34 @@ Full fine-tune & 304{,}383{,}232 & $0.8880 \pm 0.0057$ & 0.8033 & 0.6328 & 0.248
 Full fine-tuning is \emph{worse} than training no backbone parameter at all ($0.8880$ vs.\ $0.8926$) despite $1{,}031\times$ more trainable weights, and MAE degrades in step ($0.248$ vs.\ $0.208$): $2{,}636$ training images cannot support $304$M parameters. Progressive unfreezing of the last four blocks and LoRA are statistically indistinguishable ($+0.0040$ against a fold standard deviation near $0.01$), so LoRA matches the best tier with $47\times$ fewer trainable parameters. The parameter-efficiency curve is thus non-monotonic, peaking far below full capacity. This is a single-seed comparison, so the LoRA-versus-progressive ordering is not resolved; the frozen-to-LoRA and full-fine-tune-to-LoRA gaps are several fold standard deviations wide.
 
 
+
+\subsection{Is the miscalibration the loss or the architecture?}
+\label{sec:loss-factorial}
+\begin{table}[!t]
+\centering
+\caption{Loss $\times$ head factorial on APTOS, 3 seeds $\times$ 5-fold CV, everything else held fixed. ECE is reported under the submitted product decode and under the projection of Eq.~\eqref{eq:monotone}.}
+\label{tab:lossfactorial}
+\begin{tabular}{llccccc}
+\toprule
+Head & Loss & QWK & Acc & ECE (prod.) & ECE (proj.) & Viol. \\
+\midrule
+Ordinal CapsNet & margin & $0.8922 \pm 0.0013$ & 0.7904 & 0.1581 & 0.0811 & 58.3\% \\
+ & BCE & $0.8867 \pm 0.0006$ & 0.7853 & 0.0791 & 0.0323 & 50.3\% \\
+ & focal & $0.8908 \pm 0.0011$ & 0.7943 & 0.2091 & 0.1122 & 46.9\% \\
+\midrule
+MLP + $K{-}1$ & margin & $0.8847 \pm 0.0008$ & 0.7929 & 0.1050 & 0.0555 & 50.9\% \\
+ & BCE & $0.8856 \pm 0.0016$ & 0.7897 & 0.0181 & 0.0221 & 28.4\% \\
+ & focal & $0.8846 \pm 0.0011$ & 0.7896 & 0.1771 & 0.0904 & 19.3\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The submitted paper attributed the capsule head's poor calibration to the Sabour margin loss, but never varied the two factors independently: every capsule row used the margin loss, so loss and architecture were confounded. Running the full factorial separates them, and both turn out to matter, by comparable amounts.
+
+The loss main effect is the larger of the two. Replacing the margin loss with plain binary cross-entropy on the same heads improves ECE by $-0.0790$ for the capsule head and $-0.0869$ for the MLP head. Focal loss is worse than either. The architecture main effect is present under every loss and does not wash out: at matched loss the capsule head is worse calibrated by $+0.0532$ (margin), $+0.0610$ (BCE) and $+0.0320$ (focal). So the original attribution was half right. The margin loss is genuinely miscalibrating, but a capsule head trained with a proper scoring rule is still worse calibrated than an MLP trained the same way.
+
+The practically useful cell is MLP+$K{-}1$ with BCE, at ECE $0.0181$ against $0.1581$ for the submitted capsule-plus-margin configuration --- better calibrated by a factor of $8.7$ --- for a QWK cost of $-0.0065$. Two further observations. Rank-monotonicity violations track the same ordering ($28.4\%$ for MLP+BCE against $58.3\%$ for capsule+margin), reinforcing that these are three views of one underlying property. And the projection of Eq.~\eqref{eq:monotone} helps every configuration except the best-calibrated one, where it is marginally harmful ($0.0221$ against $0.0181$): once the decoded probabilities are already close to calibrated, enforcing monotonicity has nothing left to repair.
+
 \subsection{Input resolution}
 \label{sec:resolution}
 \begin{table}[!t]
