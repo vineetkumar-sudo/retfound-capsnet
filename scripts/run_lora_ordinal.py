@@ -39,6 +39,7 @@ from torch.utils.data import DataLoader
 from src.data.image_dataset import FundusImageDataset
 from src.evaluate import compute_all_metrics
 from src.losses.ordinal_loss import OrdinalMarginLoss, predict_grade_from_heads
+from src.models.dinov2_lora_capsnet import Dinov2LoraOrdinalCapsNet
 from src.models.retfound_lora_capsnet import RetfoundLoraOrdinalCapsNet
 from src.utils import enable_tf32
 
@@ -169,16 +170,23 @@ def train_fold(fold_idx: int, ids_tr, y_tr, ids_va, y_va,
                batch_size: int, num_workers: int,
                out_dir: Path, log_every: int,
                model_seed: int = SEED,
-               tune_mode: str = "lora", unfreeze_blocks: int = 0) -> dict:
+               tune_mode: str = "lora", unfreeze_blocks: int = 0,
+               backbone: str = "retfound") -> dict:
     torch.manual_seed(model_seed + fold_idx)
     np.random.seed(model_seed + fold_idx)
 
     tr_loader, va_loader = make_loaders(ids_tr, y_tr, ids_va, y_va,
                                         batch_size, num_workers)
-    model = RetfoundLoraOrdinalCapsNet(
-        lora_r=LORA_R, lora_alpha=LORA_ALPHA, lora_dropout=LORA_DROPOUT,
-        num_classes=NUM_CLASSES,
-    ).to(device)
+    if backbone == "dinov2":
+        model = Dinov2LoraOrdinalCapsNet(
+            lora_r=LORA_R, lora_alpha=LORA_ALPHA, lora_dropout=LORA_DROPOUT,
+            num_classes=NUM_CLASSES,
+        ).to(device)
+    else:
+        model = RetfoundLoraOrdinalCapsNet(
+            lora_r=LORA_R, lora_alpha=LORA_ALPHA, lora_dropout=LORA_DROPOUT,
+            num_classes=NUM_CLASSES,
+        ).to(device)
 
     report = model.set_tuning_mode(tune_mode, unfreeze_blocks)
     print(f"  mode={tune_mode}"
@@ -289,6 +297,11 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--patience", type=int, default=DEFAULT_PATIENCE)
     ap.add_argument("--batch-size", type=int, default=DEFAULT_BATCH)
     ap.add_argument("--num-workers", type=int, default=2)
+    ap.add_argument("--backbone", choices=["retfound", "dinov2"],
+                    default="retfound",
+                    help="Which frozen backbone to attach adapters to. "
+                         "'dinov2' completes the head x backbone x tuning "
+                         "matrix the reviewer asked for (R1-12).")
     ap.add_argument("--tune-mode", choices=["lora", "full", "progressive"],
                     default="lora",
                     help="Which backbone parameters receive gradients. "
@@ -438,6 +451,7 @@ def main() -> None:
                 model_seed=model_seed,
                 tune_mode=args.tune_mode,
                 unfreeze_blocks=args.unfreeze_blocks,
+                backbone=args.backbone,
             )
             per_fold.append(summary)
             (out_dir / "summary.json").write_text(json.dumps({
