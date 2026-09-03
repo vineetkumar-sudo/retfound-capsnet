@@ -519,6 +519,30 @@ Full fine-tune & 304{,}383{,}232 & $0.8880 \pm 0.0057$ & 0.8033 & 0.6328 & 0.248
 
 Full fine-tuning is \emph{worse} than training no backbone parameter at all ($0.8880$ vs.\ $0.8926$) despite $1{,}031\times$ more trainable weights, and MAE degrades in step ($0.248$ vs.\ $0.208$): $2{,}636$ training images cannot support $304$M parameters. Progressive unfreezing of the last four blocks and LoRA are statistically indistinguishable ($+0.0040$ against a fold standard deviation near $0.01$), so LoRA matches the best tier with $47\times$ fewer trainable parameters. The parameter-efficiency curve is thus non-monotonic, peaking far below full capacity. This is a single-seed comparison, so the LoRA-versus-progressive ordering is not resolved; the frozen-to-LoRA and full-fine-tune-to-LoRA gaps are several fold standard deviations wide.
 
+
+\subsection{Input resolution}
+\label{sec:resolution}
+\begin{table}[!t]
+\centering
+\caption{Input resolution on APTOS with frozen RETFound features, 3 seeds $\times$ 5-fold CV. The $448$ rows resample the pretrained position embedding onto a $28{\times}28$ grid.}
+\label{tab:resolution}
+\begin{tabular}{llccc}
+\toprule
+Head & Res. & QWK & Acc & Macro-F1 \\
+\midrule
+Ordinal CapsNet & $224$ & $0.8923 \pm 0.0002$ & 0.7935 & 0.6259 \\
+Ordinal CapsNet & $448$ & $0.8828 \pm 0.0008$ & 0.7785 & 0.6036 \\
+\midrule
+MLP + $K{-}1$ & $224$ & $0.8849 \pm 0.0015$ & 0.7976 & 0.6235 \\
+MLP + $K{-}1$ & $448$ & $0.8771 \pm 0.0011$ & 0.7832 & 0.6106 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A reasonable objection to the $224$ crop is that downsampling a multi-megapixel fundus photograph by roughly an order of magnitude in each dimension may destroy the small, sparse lesions -- microaneurysms in particular -- that separate the lower grades. We tested it directly. Features were re-extracted at $448{\times}448$ from a losslessly cached $512$-pixel copy of each image, using the identical transform scaled to the new size, with the pretrained absolute position embedding resampled bicubically from $14{\times}14$ to $28{\times}28$ patches. Everything downstream is unchanged.
+
+Quadrupling the pixel count makes grading \emph{worse}, by $-0.0094$ QWK for the capsule head and $-0.0079$ for the MLP head. The effect is consistent across all three seeds and far outside seed noise (across-seed standard deviations $\leq 0.0015$ throughout), and it appears with both heads, so it is a property of the backbone rather than of the ordinal head. The likely mechanism is that RETFound was pretrained at $224$: running it at $448$ forces its learned position embedding onto a token grid it never saw, and that distribution mismatch costs more than the recovered lesion detail gains. The practical reading is not that fine detail is irrelevant to DR grading, but that it cannot be recovered by feeding a $224$-pretrained ViT larger inputs; a backbone pretrained at the target resolution would be needed to test the lesion-detail hypothesis properly.
+
 \subsection{Clinical screening performance}
 \label{sec:clinical}
 \begin{table}[!t]
