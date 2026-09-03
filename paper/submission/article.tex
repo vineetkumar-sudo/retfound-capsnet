@@ -445,6 +445,31 @@ On IDRiD, the Ordinal CapsNet reaches validation QWK $0.7557 \pm 0.045$ but only
 Each frozen 5-fold run completes in roughly 115 seconds on an Apple M-series MacBook (MPS backend). The LoRA 5-fold run takes $\approx$65--85 min/fold, or $\approx$16h for 3 seeds $\times$ 5 folds on the same laptop. DINOv2 feature extraction for both datasets took roughly 7 minutes on MPS.
 
 
+
+\subsection{Backbone $\times$ tuning: completing the matrix}
+\label{sec:backbone-tuning}
+\begin{table}[!t]
+\centering
+\caption{Backbone $\times$ tuning interaction on APTOS (Ordinal CapsNet head, 3 seeds $\times$ 5-fold CV). LoRA is rank 8 on \texttt{attn.qkv} in every block.}
+\label{tab:backbonetuning}
+\begin{tabular}{lccc}
+\toprule
+Backbone & Frozen & $+$ LoRA & $\Delta$ tuning \\
+\midrule
+RETFound ViT-L/16 & $0.8923 \pm 0.0002$ & $0.9143 \pm 0.0006$ & $+0.0220$ \\
+DINOv2 ViT-L/14   & $0.9074 \pm 0.0029$ & $0.9156 \pm 0.0013$ & $+0.0081$ \\
+\midrule
+$\Delta$ backbone & $+0.0152$ & $+0.0013$ & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The submitted paper reported three of these four cells; the DINOv2 $+$ LoRA cell was omitted for compute reasons, which reviewers correctly identified as leaving the comparison incomplete. Filling it changes the reading of our own headline result.
+
+Frozen, the backbone gap is $+0.0152$ QWK in DINOv2's favour, which is the basis for the claim that the backbone is the dominant lever. Under LoRA that gap shrinks to $+0.0013$ --- essentially nothing. The reason is an interaction rather than a ceiling: LoRA is worth $+0.0220$ on RETFound but only $+0.0081$ on DINOv2, so rank-8 adaptation recovers most of what the weaker backbone was missing. Best overall is DINOv2 $+$ LoRA at $0.9156$ QWK (accuracy $0.8300$, MAE $0.204$), but it beats RETFound $+$ LoRA by a margin comparable to the across-seed spread.
+
+The refined statement is therefore this: the backbone dominates \emph{when features are frozen}, and that is the regime the efficiency argument of this paper targets. Once even a small number of adapter parameters is trainable, backbone choice becomes close to irrelevant on APTOS, and $1.08$M adapter parameters substitute for the difference between a domain-specific and a generalist ViT-L. For a practitioner the decision rule is not ``pick the better backbone'' but ``if you can afford any fine-tuning at all, backbone choice stops mattering; if you cannot, it matters a great deal''.
+
 \subsection{Rank-monotonicity: projection versus repair}
 \label{sec:monotone-results}
 \begin{table}[!t]
