@@ -41,6 +41,8 @@ IDRID_ROOT = Path("data/idrid/B. Disease Grading")
 IMG_ROOT = IDRID_ROOT / "1. Original Images"
 LABEL_ROOT = IDRID_ROOT / "2. Groundtruths"
 OUT_DIR = Path("data/idrid/features")
+# Overridden by --backbone dinov2 / --out-dir, so the IDRiD half of the
+# head x backbone matrix can be filled without duplicating this script.
 WEIGHTS = Path("data/weights/RETFound_mae_natureCFP.pth")
 
 
@@ -93,8 +95,13 @@ def extract_features(
             img = Image.open(img_path).convert("RGB")
             tensors.append(RETFOUND_TRANSFORM(img))
         batch = torch.stack(tensors).to(device)
-        feats = model.forward_features(batch)  # (B, 197, 1024)
-        cls = feats[:, 0]                      # (B, 1024)
+        # timm ViT: forward_features -> (B, 1+N, 1024), CLS at index 0.
+        # DINOv2 hub wrapper: forward() already returns the CLS token, and its
+        # forward_features() returns a dict instead of a tensor.
+        if BACKBONE == "dinov2":
+            cls = model(batch)                 # (B, 1024)
+        else:
+            cls = model.forward_features(batch)[:, 0]
         out_chunks.append(cls.cpu().numpy())
     elapsed = time.time() - t0
     print(f"    Done: {len(image_ids)} images in {elapsed:.1f}s "
@@ -102,7 +109,20 @@ def extract_features(
     return np.concatenate(out_chunks, axis=0)
 
 
+BACKBONE = "retfound"
+
+
 def main() -> None:
+    global BACKBONE, OUT_DIR
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--backbone", choices=["retfound", "dinov2"], default="retfound")
+    ap.add_argument("--out-dir", default=None)
+    a = ap.parse_args()
+    BACKBONE = a.backbone
+    OUT_DIR = Path(a.out_dir) if a.out_dir else Path(
+        "data/idrid/features" if a.backbone == "retfound" else "data/idrid/features_dinov2")
+
     assert IDRID_ROOT.exists(), f"Missing {IDRID_ROOT}. Unzip IDRiD under data/idrid/ first."
     assert WEIGHTS.exists(), f"Missing RETFound weights at {WEIGHTS}"
 
@@ -114,9 +134,13 @@ def main() -> None:
 
     device = get_device()
     print(f"Device: {device}")
-    print("Loading RETFound weights...")
     t0 = time.time()
-    model = load_retfound(str(WEIGHTS), device)
+    if BACKBONE == "dinov2":
+        from scripts.extract_dinov2_features import load_dinov2
+        model = load_dinov2(device)
+    else:
+        print("Loading RETFound weights...")
+        model = load_retfound(str(WEIGHTS), device)
     print(f"Model loaded in {time.time() - t0:.1f}s\n")
 
     for split_name, img_subdir, csv_name in [

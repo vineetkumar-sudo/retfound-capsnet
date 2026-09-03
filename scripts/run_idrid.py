@@ -289,6 +289,10 @@ def run_model(
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
+    p.add_argument("--features-dir", default=None,
+                   help="Override feature cache dir (e.g. data/idrid/features_dinov2).")
+    p.add_argument("--output-dir", default=None,
+                   help="Override results dir (e.g. results/idrid_dinov2).")
     p.add_argument("--models", nargs="+",
                    default=["mlp_ce", "mlp_mse", "capsnet_vanilla", "ordinal_capsnet"])
     return p.parse_args()
@@ -300,6 +304,10 @@ def main() -> None:
     print(f"Device: {device}")
     print(f"Models: {args.models}\n")
 
+    global FEATURES_DIR, RESULTS_ROOT
+    if getattr(args, "features_dir", None): FEATURES_DIR = Path(args.features_dir)
+    if getattr(args, "output_dir", None): RESULTS_ROOT = Path(args.output_dir)
+    print(f"Features: {FEATURES_DIR}\nOutput:   {RESULTS_ROOT}")
     X_train = np.load(FEATURES_DIR / "train_features.npy")
     y_train = np.load(FEATURES_DIR / "train_labels.npy")
     X_test = np.load(FEATURES_DIR / "test_features.npy")

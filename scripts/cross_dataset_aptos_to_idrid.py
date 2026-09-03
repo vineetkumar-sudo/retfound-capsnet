@@ -144,14 +144,20 @@ def train_one_fold(
 
 
 def main() -> None:
-    out_dir = Path("results/cross_dataset/aptos_to_idrid")
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--aptos-features", default="data/aptos/features")
+    ap.add_argument("--idrid-features", default="data/idrid/features")
+    ap.add_argument("--out-dir", default="results/cross_dataset/aptos_to_idrid")
+    args = ap.parse_args()
+    out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     device = get_device()
     print(f"Device: {device}")
 
     # --- APTOS train (ex-holdout) ---
-    X_aptos = np.load("data/aptos/features/train_features.npy")
-    y_aptos = np.load("data/aptos/features/train_labels.npy")
+    X_aptos = np.load(f"{args.aptos_features}/train_features.npy")
+    y_aptos = np.load(f"{args.aptos_features}/train_labels.npy")
     pool_idx, _ = train_test_split(
         np.arange(len(X_aptos)), test_size=HOLDOUT_FRAC,
         stratify=y_aptos, random_state=SEED,
@@ -160,8 +166,8 @@ def main() -> None:
     print(f"APTOS CV pool: {X_pool.shape[0]} samples")
 
     # --- IDRiD test ---
-    X_idrid = np.load("data/idrid/features/test_features.npy")
-    y_idrid = np.load("data/idrid/features/test_labels.npy")
+    X_idrid = np.load(f"{args.idrid_features}/test_features.npy")
+    y_idrid = np.load(f"{args.idrid_features}/test_labels.npy")
     print(f"IDRiD test:    {X_idrid.shape[0]} samples, "
           f"dist={np.bincount(y_idrid, minlength=5).tolist()}")
 

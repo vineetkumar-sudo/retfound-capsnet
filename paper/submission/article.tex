@@ -438,7 +438,7 @@ SLD-style prior correction lifts the ordinal ranking signal from QWK $0.009$ to 
 The takeaway is methodological, not operational. Under frozen RETFound-MAE features, the APTOS $\to$ Messidor-2 transfer failure is driven primarily by a $K{-}1$-threshold miscalibration, namely the $\bar{P}(y{>}0)$ distributional shift from $0.51$ to $0.087$. A source-prior intervention exposes this structure clearly but does not cross the clinical threshold. Genuine cross-dataset deployment requires either a stronger backbone (our within-Messidor-2 DINOv2 $\times$ MLP-K1 already reaches QWK $0.76$, see Section~\ref{sec:messidor-within}), label-shift estimation on the target domain \cite{ref:bbse,ref:mlls}, or full unsupervised domain adaptation. We concur with Ahamed et al.\ \cite{ref:dr_conformal}, who observe that data-augmentation choices interact non-trivially with conformal coverage on DR grading; a similar data-level intervention on the source side is a natural complement to the head-level probe reported here.
 
 \subsection{IDRiD}
-On IDRiD, the Ordinal CapsNet reaches validation QWK $0.7557 \pm 0.045$ but only $0.446 \pm 0.036$ on the 103-image official test. Every baseline drops by roughly $0.30$ QWK from val to test, indicating a dataset-wide distribution shift between the 413-image train set and the held-out test. APTOS $\to$ IDRiD transfer reaches QWK $0.273 \pm 0.020$. We did not run a DINOv2 IDRiD ablation in this draft; given our APTOS and Messidor-2 findings we expect DINOv2 features to perform comparably or better.
+On IDRiD with RETFound features, the Ordinal CapsNet reaches validation QWK $0.7595$ but only $0.4232 \pm 0.019$ on the 103-image official test. Every baseline drops by $0.29$ to $0.35$ QWK from validation to test, indicating a dataset-wide distribution shift between the 413-image train set and the held-out test. APTOS $\to$ IDRiD transfer reaches QWK $0.2788$. Section~\ref{sec:idrid-dinov2} repeats all of this under DINOv2, where both numbers improve substantially and the val$\to$test gap narrows.
 
 \subsection{Training dynamics and compute}
 \label{sec:compute}
@@ -596,6 +596,33 @@ A reasonable objection to the $224$ crop is that downsampling a multi-megapixel 
 
 Quadrupling the pixel count makes grading \emph{worse}, by $-0.0094$ QWK for the capsule head and $-0.0079$ for the MLP head. The effect is consistent across all three seeds and far outside seed noise (across-seed standard deviations $\leq 0.0015$ throughout), and it appears with both heads, so it is a property of the backbone rather than of the ordinal head. The likely mechanism is that RETFound was pretrained at $224$: running it at $448$ forces its learned position embedding onto a token grid it never saw, and that distribution mismatch costs more than the recovered lesion detail gains. The practical reading is not that fine detail is irrelevant to DR grading, but that it cannot be recovered by feeding a $224$-pretrained ViT larger inputs; a backbone pretrained at the target resolution would be needed to test the lesion-detail hypothesis properly.
 
+
+\subsection{IDRiD under both backbones}
+\label{sec:idrid-dinov2}
+\begin{table}[!t]
+\centering
+\caption{IDRiD, 5-fold CV on the 413 training images evaluated on the official 103-image test set. Validation QWK is the in-fold mean.}
+\label{tab:idrid_backbone}
+\begin{tabular}{lccccc}
+\toprule
+& \multicolumn{2}{c}{RETFound} & \multicolumn{2}{c}{DINOv2} & \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Model & val & test & val & test & $\Delta$ test \\
+\midrule
+MLP + CE & 0.7575 & $0.4078 \pm 0.0584$ & 0.8715 & $0.6276 \pm 0.0348$ & $+0.2199$ \\
+MLP + MSE & 0.7551 & $0.4614 \pm 0.0289$ & 0.8694 & $0.6573 \pm 0.0205$ & $+0.1959$ \\
+Vanilla CapsNet & 0.7484 & $0.4124 \pm 0.0583$ & 0.8671 & $0.6183 \pm 0.0471$ & $+0.2059$ \\
+Ordinal CapsNet & 0.7595 & $0.4232 \pm 0.0192$ & 0.8706 & $0.6393 \pm 0.0271$ & $+0.2160$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The submitted paper reported IDRiD under RETFound only, and drew two conclusions from it: that every model loses roughly $0.30$ QWK from validation to the official test split, and that this is a property of the IDRiD split rather than of any one head. Both survive, but the second needs qualifying, because the size of the drop is strongly backbone-dependent.
+
+Swapping in DINOv2 lifts test QWK by $+0.196$ to $+0.220$ on every one of the four models, moving the best from $0.4614$ to $0.6573$. The validation-to-test gap narrows from $0.29$ to $0.35$ to $0.21$ to $0.25$, so the ``IDRiD split is simply hard'' reading is only partly right: roughly a third of the gap was attributable to the backbone rather than to the split.
+
+The cross-dataset result changes more sharply still. APTOS$\to$IDRiD transfer with no IDRiD training rises from QWK $0.2788$ under RETFound to $0.6259$ under DINOv2. That is within noise of the $0.6573$ obtained by training on IDRiD directly, and it sits at the boundary of the $\approx 0.60$ clinical-agreement threshold that the APTOS$\to$Messidor-2 transfer never approaches. The pessimistic cross-dataset conclusion of the submitted paper is therefore specific to RETFound-MAE features rather than a general statement about frozen-feature transfer, and we have restated it accordingly. Messidor-2 remains the harder target: its transfer failure is a threshold collapse (Section~\ref{sec:cross}) that a stronger backbone alone does not fix.
+
 \subsection{Clinical screening performance}
 \label{sec:clinical}
 \begin{table}[!t]
@@ -641,7 +668,7 @@ A note on benchmark positioning. We do not target the SOTA APTOS QWK of MAFNet (
 \section{Limitations}
 \label{sec:limitations}
 
-We did not run a DINOv2 LoRA variant (compute budget, 16h/seed on MPS). We did not run a DINOv2 IDRiD ablation. We did not compare against rank-calibrated class-conditional conformal (RC3P, \cite{ref:rank_conformal}), evidential ordinal heads \cite{ref:uaorlqap}, or the MAFNet and Dual-SwinOrd families \cite{ref:mafnet,ref:dualswinord} because these require non-trivial training budgets on a single laptop. We flag them as natural follow-ups. Our UQ analysis is single-split for conformal set-size distribution. Marginal coverage is averaged over five splits but per-class coverage is the single-split seed-42 run. The IDRiD val$\to$test gap of $\approx$0.30 QWK is genuine, not an artefact of our protocol, and we did not attempt IDRiD-specific domain adaptation.
+We did not compare against rank-calibrated class-conditional conformal (RC3P, \cite{ref:rank_conformal}), evidential ordinal heads \cite{ref:uaorlqap}, or the MAFNet and Dual-SwinOrd families \cite{ref:mafnet,ref:dualswinord} and we flag them as natural follow-ups. Our UQ analysis is single-split for conformal set-size distribution. Marginal coverage is averaged over five splits but per-class coverage is the single-split seed-42 run. The IDRiD val$\to$test gap is genuine rather than an artefact of our protocol, and we did not attempt IDRiD-specific domain adaptation. The four-tier fine-tuning comparison (Table~\ref{tab:finetune}) is single-seed, so it resolves the frozen/LoRA and full-fine-tune/LoRA gaps but not the LoRA/progressive ordering. Messidor-2 and IDRiD are evaluated with frozen and LoRA backbones only; we did not run full fine-tuning on either.
 
 \section{Conclusion}
 \label{sec:conclusion}
