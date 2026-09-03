@@ -170,7 +170,7 @@ OCP is exactly APS with the descending-probability accumulation order replaced b
 \label{sec:setup}
 
 \subsection{Datasets}
-\textbf{APTOS-2019} \cite{ref:aptos} contains 3{,}662 colour fundus photographs (CFPs) with 5-class ICDR severity labels. \textbf{Messidor-2} \cite{ref:messidor2,ref:abramoff,ref:krause} contains 1{,}744 gradable images with adjudicated 5-class labels. \textbf{IDRiD} \cite{ref:idrid} contains 413 training and 103 official-test images with 5-class labels.
+\textbf{APTOS-2019} \cite{ref:aptos} contains 3{,}662 colour fundus photographs (CFPs) with 5-class ICDR severity labels. \textbf{Messidor-2} \cite{ref:messidor2,ref:abramoff,ref:krause} is distributed as 1{,}748 images, of which 1{,}744 carry an adjudicated 5-class grade; the 4 images marked ungradable by the adjudication protocol are excluded, since a severity label does not exist for them. We do not perform any additional automated quality filtering, so every gradable image is retained regardless of illumination or focus, and no image is discarded on the basis of model confidence. APTOS and IDRiD are distributed fully graded and are used in their entirety. \textbf{IDRiD} \cite{ref:idrid} contains 413 training and 103 official-test images with 5-class labels.
 
 \subsection{Metrics}
 \label{sec:metrics}
@@ -184,6 +184,10 @@ We report metrics in three families.
 
 \subsection{Protocol}
 Every row of the APTOS ablation is 3 seeds $\times$ 5 folds (seeds $\{42, 123, 456\}$). The LoRA fine-tune reported in Section~\ref{sec:aptos} uses the same protocol. On APTOS we set aside a class-stratified $10\%$ holdout and run stratified 5-fold CV on the remaining $90\%$. On Messidor-2 we run stratified 5-fold within-dataset and additionally report APTOS$\to$Messidor-2 cross-dataset transfer with no Messidor-2 training. IDRiD is used for within-dataset evaluation and APTOS$\to$IDRiD cross-dataset transfer on the RETFound backbone only. Data splits are fixed across seeds by \texttt{cfg.data.seed}, so only the model-init RNG varies. Early-stopping patience is 30 epochs on validation QWK (8 for LoRA, which converges in roughly half the budget). The optimiser is AdamW with weight decay $10^{-4}$.
+
+\emph{Data augmentation.} None is applied. In the frozen-feature tiers the backbone is evaluated once per image under the deterministic RETFound evaluation transform and its CLS token is cached, so augmentation would have no effect unless the cache were regenerated per epoch; holding the features fixed is what makes the head comparison exactly controlled. For the LoRA and fine-tuning tiers, where the backbone does see gradients, augmentation would have been possible and we deliberately omitted it so that every tier in Table~\ref{tab:finetune} differs only in which parameters are trainable. This is a limitation rather than a design virtue: Ahamed et al. \cite{ref:dr_conformal} show that augmentation choices interact non-trivially with conformal coverage on DR grading, so an augmented variant is a natural extension.
+
+\emph{Calibration/test construction and exchangeability.} All conformal results split a pooled prediction set 50:50 at random into calibration and test halves, averaged over five split seeds. Two caveats about the exchangeability this relies on. First, the pool is formed by concatenating out-of-fold predictions across 5 folds and 3 model seeds, so each image contributes 3 rows (one per seed) produced by different models. These rows are not independent, which inflates the effective sample size relative to the nominal $N = 9{,}885$. Second, predictions from different folds come from different fitted heads, so the pooled sequence is exchangeable only under the additional assumption that the fold-wise models are themselves exchangeable. Neither caveat affects the observed coverage, which we verify empirically holds within $\pm 0.01$ of target in every configuration, but both mean the finite-sample guarantee should be read as approximate. A strictly exchangeable alternative is to calibrate within a single fold of a single seed, at $1/15$ of the pooled sample size ($N = 659$). We ran it: coverage is $0.9447 \pm 0.0180$ against $0.9505 \pm 0.0039$ for the pooled set, a difference of $0.0058$ that sits inside one standard deviation of the strict estimate, with mean set size $1.909$ versus $1.934$. Pooling therefore buys a much tighter coverage estimate without measurably biasing it.
 
 \section{Results}
 \label{sec:results}
@@ -439,6 +443,108 @@ On IDRiD, the Ordinal CapsNet reaches validation QWK $0.7557 \pm 0.045$ but only
 \subsection{Training dynamics and compute}
 \label{sec:compute}
 Each frozen 5-fold run completes in roughly 115 seconds on an Apple M-series MacBook (MPS backend). The LoRA 5-fold run takes $\approx$65--85 min/fold, or $\approx$16h for 3 seeds $\times$ 5 folds on the same laptop. DINOv2 feature extraction for both datasets took roughly 7 minutes on MPS.
+
+
+\subsection{Rank-monotonicity: projection versus repair}
+\label{sec:monotone-results}
+\begin{table}[!t]
+\centering
+\caption{Effect of the rank-monotonicity projection of Eq.~\eqref{eq:monotone}. A is the submitted decode (product, clipped, renormalised); C is the projection followed by exact cumulative differences. ``Viol.'' is the fraction of samples whose continuous heads violate monotonicity.}
+\label{tab:monotone}
+\begin{tabular}{llccc}
+\toprule
+Dataset & Model & Viol. & ECE (A) & ECE (C) \\
+\midrule
+APTOS & RETFound $\times$ Ordinal CapsNet & 55.6\% & 0.1469 & $\mathbf{0.0715}$ \\
+ & RETFound $\times$ MLP + K-1 sigmoid & 46.2\% & 0.1026 & $\mathbf{0.0552}$ \\
+ & DINOv2 $\times$ Ordinal CapsNet & 56.7\% & 0.1238 & $\mathbf{0.0580}$ \\
+ & DINOv2 $\times$ MLP + K-1 sigmoid & 44.5\% & 0.1060 & $\mathbf{0.0562}$ \\
+ & RETFound $\times$ Ordinal CapsNet + LoRA & 56.2\% & 0.1339 & $\mathbf{0.0549}$ \\
+\midrule
+Messidor-2 & RETFound $\times$ Ordinal CapsNet & 37.8\% & 0.1054 & $\mathbf{0.0459}$ \\
+ & RETFound $\times$ MLP + K-1 sigmoid & 4.2\% & 0.0860 & $\mathbf{0.0387}$ \\
+ & DINOv2 $\times$ Ordinal CapsNet & 62.2\% & 0.1207 & $\mathbf{0.0580}$ \\
+ & DINOv2 $\times$ MLP + K-1 sigmoid & 48.5\% & 0.0835 & $\mathbf{0.0329}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The continuous heads violate rank-monotonicity on $4.2$ to $62.2\%$ of samples depending on the configuration, two orders of magnitude more often than the $0.3\%$ reported by the thresholded consistency count, which only registers contradictions among the hard $\hat{p}_k > 0.5$ decisions. Replacing clip-and-renormalise with the projection of Eq.~\eqref{eq:monotone} roughly halves ECE on every one of the nine cells (mean reduction $53\%$), for a QWK cost of $0.004$ to $0.014$. Unlike temperature scaling this requires no held-out split and no fitted parameter. The capsule heads violate monotonicity substantially more often than the MLP-K1 baseline at matched backbone ($55.6\%$ vs.\ $46.2\%$ on APTOS/RETFound, $37.8\%$ vs.\ $4.2\%$ on Messidor-2/RETFound), which is the same ordering we observe in ECE and, below, in set contiguity.
+
+\subsection{Ordinal contiguous prediction sets}
+\label{sec:ocp-results}
+\begin{table*}[!t]
+\centering
+\caption{Ordinal contiguous prediction (OCP) versus label-set scores at $\alpha = 0.10$. The first three columns give the fraction of prediction sets that skip an intermediate grade, which is incoherent on an ordinal scale; OCP is exactly zero by construction. Five random calibration/test splits per cell.}
+\label{tab:ocp}
+\begin{tabular}{llccc cc cc}
+\toprule
+& & \multicolumn{3}{c}{Non-contiguous rate} & \multicolumn{2}{c}{APS} & \multicolumn{2}{c}{OCP (ours)} \\
+\cmidrule(lr){3-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9}
+Dataset & Model & LAC & APS & RAPS & cov. & $|S|$ & cov. & $|S|$ \\
+\midrule
+APTOS & RETFound $\times$ Ordinal CapsNet & 5.1\% & 12.2\% & 12.6\% & 0.943 & 1.81 & 0.943 & 1.88 \\
+ & RETFound $\times$ MLP + K-1 sigmoid & 2.3\% & 8.4\% & 8.7\% & 0.939 & 1.87 & 0.938 & 1.91 \\
+ & DINOv2 $\times$ Ordinal CapsNet & 2.3\% & 8.1\% & 8.3\% & 0.948 & 1.76 & 0.948 & 1.81 \\
+ & DINOv2 $\times$ MLP + K-1 sigmoid & 1.8\% & 7.3\% & 7.7\% & 0.945 & 1.80 & 0.946 & 1.84 \\
+ & RETFound $\times$ Ordinal CapsNet + LoRA & 0.7\% & 4.9\% & 5.0\% & 0.942 & 1.69 & 0.943 & 1.71 \\
+\midrule
+Messidor-2 & RETFound $\times$ Ordinal CapsNet & 5.9\% & 12.8\% & 12.9\% & 0.903 & 2.50 & 0.901 & 2.54 \\
+ & RETFound $\times$ MLP + K-1 sigmoid & 0.9\% & 3.8\% & 3.8\% & 0.902 & 2.48 & 0.906 & 2.51 \\
+ & DINOv2 $\times$ Ordinal CapsNet & 4.1\% & 9.9\% & 10.2\% & 0.895 & 2.03 & 0.892 & 2.03 \\
+ & DINOv2 $\times$ MLP + K-1 sigmoid & 0.6\% & 3.7\% & 3.6\% & 0.904 & 2.03 & 0.903 & 2.02 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+Between $0.6$ and $5.9\%$ of LAC sets and $3.7$ to $12.8\%$ of APS sets are non-contiguous, so a per-configuration measurement is necessary: no single rate characterises the grid. OCP removes all of them while matching APS coverage, at a mean set-size cost of $+0.04$ grades (worst case $+0.066$); on Messidor-2 with DINOv2 $\times$ MLP-K1 it is $0.015$ \emph{smaller} than APS. Ordinal coherence is therefore effectively free, and the capsule heads again pay the larger incoherence penalty ($12.8\%$ vs.\ $3.8\%$ on Messidor-2/RETFound).
+
+\subsection{Fine-tuning tiers}
+\label{sec:finetune-results}
+\begin{table}[!t]
+\centering
+\caption{Fine-tuning tiers on APTOS (seed 42, 5-fold CV, identical splits). Tiers differ only in which backbone parameters receive gradients.}
+\label{tab:finetune}
+\begin{tabular}{llcccc}
+\toprule
+Tier & Trainable & QWK & Acc & Macro-F1 & MAE \\
+\midrule
+Frozen head only & 295{,}168 & $0.8926 \pm 0.0079$ & 0.7900 & 0.6216 & --- \\
+LoRA $r{=}8$ & 1{,}081{,}600 & $0.9149 \pm 0.0109$ & 0.8270 & 0.6785 & 0.208 \\
+Progressive (last 4 blocks) & 50{,}813{,}184 & $0.9189 \pm 0.0086$ & 0.8310 & 0.6904 & 0.200 \\
+Full fine-tune & 304{,}383{,}232 & $0.8880 \pm 0.0057$ & 0.8033 & 0.6328 & 0.248 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Full fine-tuning is \emph{worse} than training no backbone parameter at all ($0.8880$ vs.\ $0.8926$) despite $1{,}031\times$ more trainable weights, and MAE degrades in step ($0.248$ vs.\ $0.208$): $2{,}636$ training images cannot support $304$M parameters. Progressive unfreezing of the last four blocks and LoRA are statistically indistinguishable ($+0.0040$ against a fold standard deviation near $0.01$), so LoRA matches the best tier with $47\times$ fewer trainable parameters. The parameter-efficiency curve is thus non-monotonic, peaking far below full capacity. This is a single-seed comparison, so the LoRA-versus-progressive ordering is not resolved; the frozen-to-LoRA and full-fine-tune-to-LoRA gaps are several fold standard deviations wide.
+
+\subsection{Clinical screening performance}
+\label{sec:clinical}
+\begin{table}[!t]
+\centering
+\caption{Referable-DR screening performance (grade $\geq 2$), read directly off the $K{-}1$ head output $P(y{>}1)$ at threshold $0.5$. 95\% CIs are bootstrap percentile intervals. NHS marks whether the row clears the diabetic-eye-screening bar (sensitivity $\geq 0.85$, specificity $\geq 0.80$).}
+\label{tab:clinical}
+\begin{tabular}{llccccc}
+\toprule
+Dataset & Model & AUROC & Sens. & Spec. & Bal.\ acc & NHS \\
+\midrule
+APTOS & RETFound $\times$ Ordinal CapsNet & 0.976 & 0.948 & 0.909 & 0.928 & pass \\
+ & RETFound $\times$ MLP + K-1 sigmoid & 0.977 & 0.939 & 0.913 & 0.926 & pass \\
+ & DINOv2 $\times$ Ordinal CapsNet & 0.978 & 0.957 & 0.914 & 0.936 & pass \\
+ & DINOv2 $\times$ MLP + K-1 sigmoid & 0.981 & 0.954 & 0.916 & 0.935 & pass \\
+ & RETFound $\times$ Ordinal CapsNet + LoRA & 0.981 & 0.954 & 0.931 & 0.942 & pass \\
+\midrule
+Messidor-2 & RETFound $\times$ Ordinal CapsNet & 0.820 & 0.639 & 0.853 & 0.746 & fail \\
+ & RETFound $\times$ MLP + K-1 sigmoid & 0.825 & 0.619 & 0.852 & 0.735 & fail \\
+ & DINOv2 $\times$ Ordinal CapsNet & 0.893 & 0.720 & 0.949 & 0.835 & fail \\
+ & DINOv2 $\times$ MLP + K-1 sigmoid & 0.915 & 0.744 & 0.928 & 0.836 & fail \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+Because head $k$ emits $P(y{>}k)$ directly, the referable-DR detector requires no additional thresholding or class marginalisation; it is simply head 2. On APTOS every configuration clears the NHS screening bar, with referable-DR AUROC $0.976$ to $0.981$ and sensitivity $0.939$ to $0.957$ at specificity $0.909$ to $0.931$; re-tuned to sensitivity $0.85$ the achievable specificity is $0.955$ to $0.966$. On Messidor-2 every configuration fails, and fails on \emph{sensitivity} ($0.619$ to $0.744$) while specificity remains adequate ($0.85$ to $0.95$) --- the safety-critical direction. This is an operating-point problem rather than a capability ceiling: re-tuned to sensitivity $0.85$, DINOv2 $\times$ MLP-K1 reaches specificity $0.817$ and clears the bar, whereas both RETFound configurations top out at $0.611$ to $0.614$ and cannot clear it at any threshold. It also puts the head-choice effect in perspective: on APTOS the two heads differ by under $0.02$ in referable-DR sensitivity and both pass regardless, so the $+0.007$ QWK gap between them is not clinically decisive, whereas the backbone and the threshold are.
 
 \section{Discussion}
 \label{sec:discussion}
