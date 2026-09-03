@@ -228,7 +228,7 @@ The $K{-}1$ ordinal decomposition is the larger head-level lever; capsule routin
 Table~\ref{tab:head_backbone} is the fully crossed ablation on APTOS and Messidor-2. The single-variable change column (backbone) yields a substantially larger effect than the orthogonal single-variable change (head) on both datasets.
 
 \begin{table*}[!t]
-    \caption{Head $\times$ Backbone 2$\times$2 ablation. APTOS rows are 3 seeds $\times$ 5-fold CV; Messidor-2 rows are 5-fold CV within the 1{,}744 gradable images. All cells use the same preprocessing, the same K-1 decomposition, and the same margin loss.}
+    \caption{Head $\times$ backbone ablation. APTOS rows are 3 seeds $\times$ 5-fold CV; Messidor-2 rows are 5-fold CV on the 1{,}744 gradable images. All cells share preprocessing, decomposition and loss.}
     \label{tab:head_backbone}
     \centering
     \footnotesize
@@ -253,7 +253,7 @@ DINOv2 beats RETFound at frozen-feature DR grading cleanly on both datasets and 
 Table~\ref{tab:calibration} summarises the calibration and selective-prediction metrics across all nine configurations. Fig.~\ref{fig:reliability_aptos} shows reliability diagrams for the APTOS head$\times$backbone $2{\times}2$.
 
 \begin{table*}[!t]
-    \caption{Calibration and selective prediction across the head$\times$backbone grid. ECE / MCE use 10 equal-mass bins on the per-sample confidence $P(y=\hat{y})$. AURC (max-p) uses max chain-rule probability as the selective-prediction signal; AURC (margin) uses the top-2 prediction margin. Lower is better for all four UQ columns. Renorm is the fraction of samples where the product-form chain-rule probability required renormalisation. Note this is a property of the product decoding, not of ordinal consistency: the product form does not sum to one even for a perfectly monotone head vector, so the column reads near $100\%$ for every configuration (Section~\ref{sec:monotone}). \textbf{Bold} = best per column among frozen-feature rows; the LoRA row is reported as a fine-tuning compute-tier anchor.}
+    \caption{Calibration and selective prediction across the head$\times$backbone grid. Lower is better in all four UQ columns. Renorm reflects the product decoding rather than ordinal consistency (Section~\ref{sec:monotone}). \textbf{Bold} = best among frozen-feature rows; LoRA is a compute-tier anchor.}
     \label{tab:calibration}
     \centering
     \footnotesize
@@ -296,7 +296,7 @@ Temperature scaling \cite{ref:guo_calibration} recovers most of the ECE gap (Tab
 The capsule \emph{prediction margin} is also a valid selective-prediction signal but not a unique one. Fig.~\ref{fig:risk_coverage_aptos} shows the corresponding risk--coverage curves: within each backbone the capsule and MLP curves are visually indistinguishable, while the DINOv2 curves dominate the RETFound ones. AURC (margin) and AURC (max-p) agree within $\pm 0.004$ on every cell, and a vanilla MLP-K1 top-2 margin matches both. The UQ value attributed in prior work to the capsule nonlinearity is duplicated by the chain-rule 5-class probabilities of any $K{-}1$ head, capsule or otherwise.
 
 \begin{table*}[!t]
-    \caption{Temperature scaling on the chain-rule probabilities. T is fitted on a 50\% random calibration split by minimising NLL; metrics are reported on the held-out 50\%. T $<$ 1 indicates over-confidence. ECE uses 10 equal-mass bins on $P(y = \hat{y})$. Lower is better for ECE, Brier, NLL.}
+    \caption{Temperature scaling on the chain-rule probabilities. $T$ is fitted on a random 50\% split by minimising NLL and evaluated on the other half; $T < 1$ indicates over-confidence. Lower is better throughout.}
     \label{tab:calibration_ts}
     \centering
     \footnotesize
@@ -325,7 +325,7 @@ The capsule \emph{prediction margin} is also a valid selective-prediction signal
 Calibration is miscalibrated because the margin loss does not encourage it; conformal prediction sidesteps the problem by producing coverage guarantees that depend only on exchangeability, not on probability calibration. Table~\ref{tab:conformal} shows marginal coverage and average set size at $\alpha = 0.10$ for all nine configurations, averaged over five random cal/test splits.
 
 \begin{table*}[!t]
-    \caption{Split conformal prediction at $\alpha = 0.10$. Marginal coverage is the fraction of test samples whose true label is in the prediction set; the target is 90\%. Mean $|S|$ is the average set size (smaller = more informative, for the same coverage). Rows are five random cal/test 50:50 splits. \textbf{Bold} = best per column among frozen-feature rows; the LoRA row is reported as a fine-tuning compute-tier anchor.}
+    \caption{Split conformal prediction at $\alpha = 0.10$ (target coverage 90\%), averaged over five random 50:50 calibration/test splits. Smaller $|S|$ is more informative at equal coverage. \textbf{Bold} = best among frozen-feature rows.}
     \label{tab:conformal}
     \centering
     \footnotesize
@@ -404,7 +404,7 @@ Cross-dataset APTOS$\to$Messidor-2 (no Messidor-2 training) collapses to QWK $\a
 \textbf{Prior-probability shift correction.} For each head, we sort all target-domain samples by severity score $P(y{>}k\,|\,x)$ and assign grades by matching the cumulative distribution to the APTOS \emph{source-domain} prior $\pi$. This is an ordinal-decomposition variant of the Saerens, Latinne and Decaestecker EM-style prior correction \cite{ref:saerens}, which has a long follow-up literature (Lipton et al.'s BBSE \cite{ref:bbse}, Alexandari et al.'s MLLS/BCTS \cite{ref:mlls}) that we do not claim novelty against. Our contribution is strictly in applying the source-prior variant as a vulnerability probe for frozen ordinal DR heads. Stronger target-prior estimation (BBSE, MLLS) and full unsupervised domain adaptation (DANN, CORAL, SHOT) are named as future work. The calibration uses no target-domain labels. Table~\ref{tab:cross_messidor2} reports three rows for the ordinal head, namely uncalibrated, APTOS-prior corrected, and oracle (Messidor-2 prior) corrected.
 
 \begin{table*}[!t]
-    \caption{APTOS $\to$ Messidor-2 cross-dataset transfer (no target training). SLD-style prior-shift correction \cite{ref:saerens} on the ordinal head uses no target-domain labels; ``Oracle'' uses the true Messidor-2 marginal as an upper bound. Post-correction QWK remains below the clinical-agreement threshold ($\approx$0.60) and should be read as a vulnerability probe, not a deployment recipe.}
+    \caption{APTOS $\to$ Messidor-2 transfer with no target training. The prior-shift correction \cite{ref:saerens} uses no target labels; ``Oracle'' uses the true target marginal as an upper bound. Read as a vulnerability probe, not a deployment recipe.}
     \label{tab:cross_messidor2}
     \centering
     \footnotesize
@@ -446,7 +446,7 @@ Each frozen 5-fold run completes in roughly 115 seconds on an Apple M-series Mac
 \label{sec:monotone-results}
 \begin{table}[!t]
 \centering
-\caption{Effect of the rank-monotonicity projection of Eq.~\eqref{eq:monotone}. A is the submitted decode (product, clipped, renormalised); C is the projection followed by exact cumulative differences. ``Viol.'' is the fraction of samples whose continuous heads violate monotonicity.}
+\caption{Effect of the rank-monotonicity projection of Eq.~\eqref{eq:monotone}. A is the submitted decode (product, clipped, renormalised); C is the projection with exact cumulative differences. ``Viol.'' is the continuous-head violation rate.}
 \label{tab:monotone}
 \begin{tabular}{llccc}
 \toprule
@@ -472,7 +472,7 @@ The continuous heads violate rank-monotonicity on $4.2$ to $62.2\%$ of samples d
 \label{sec:ocp-results}
 \begin{table*}[!t]
 \centering
-\caption{Ordinal contiguous prediction (OCP) versus label-set scores at $\alpha = 0.10$. The first three columns give the fraction of prediction sets that skip an intermediate grade, which is incoherent on an ordinal scale; OCP is exactly zero by construction. Five random calibration/test splits per cell.}
+\caption{OCP versus label-set scores at $\alpha = 0.10$, over five calibration/test splits. The first three columns give the fraction of sets that skip an intermediate grade; OCP is zero by construction.}
 \label{tab:ocp}
 \begin{tabular}{llccc cc cc}
 \toprule
@@ -520,7 +520,7 @@ Full fine-tuning is \emph{worse} than training no backbone parameter at all ($0.
 \label{sec:clinical}
 \begin{table}[!t]
 \centering
-\caption{Referable-DR screening performance (grade $\geq 2$), read directly off the $K{-}1$ head output $P(y{>}1)$ at threshold $0.5$. 95\% CIs are bootstrap percentile intervals. NHS marks whether the row clears the diabetic-eye-screening bar (sensitivity $\geq 0.85$, specificity $\geq 0.80$).}
+\caption{Referable-DR screening (grade $\geq 2$), read off the head output $P(y{>}1)$ at threshold $0.5$. NHS marks whether the row clears the screening bar (sensitivity $\geq 0.85$, specificity $\geq 0.80$).}
 \label{tab:clinical}
 \begin{tabular}{llccccc}
 \toprule
