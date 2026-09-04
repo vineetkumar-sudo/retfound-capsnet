@@ -470,6 +470,31 @@ Frozen, the backbone gap is $+0.0152$ QWK in DINOv2's favour, which is the basis
 
 The refined statement is therefore this: the backbone dominates \emph{when features are frozen}, and that is the regime the efficiency argument of this paper targets. Once even a small number of adapter parameters is trainable, backbone choice becomes close to irrelevant on APTOS, and $1.08$M adapter parameters substitute for the difference between a domain-specific and a generalist ViT-L. For a practitioner the decision rule is not ``pick the better backbone'' but ``if you can afford any fine-tuning at all, backbone choice stops mattering; if you cannot, it matters a great deal''.
 
+
+\subsection{Does the adapter substitution hold on a second dataset?}
+\label{sec:messidor-lora}
+The fine-tuning tiers above are measured on APTOS alone, which makes every
+conclusion about adapters single-dataset. We therefore repeated the LoRA tier
+on Messidor-2 under an identical protocol (rank 8 on \texttt{attn.qkv}, same
+optimiser and learning rates, stratified 5-fold CV on the $1{,}744$ gradable
+images).
+
+LoRA lifts Messidor-2 from QWK $0.6021$ frozen to $0.7097$, a gain of $+0.1076$ --- roughly
+five times the $+0.0220$ it buys on APTOS --- and it cuts fold-to-fold variance
+threefold ($0.0152$ against $0.0454$), so the adapted model is markedly more
+stable on the harder cohort.
+
+The gain does not, however, close the backbone gap. Frozen DINOv2 reaches
+$0.7586$ on the same split, so RETFound with adapters remains $0.0488$ behind a
+better backbone used with no training at all. This qualifies the APTOS
+reading of Section~\ref{sec:backbone-tuning}, where LoRA erased a $+0.0151$
+backbone gap entirely. Adapters substitute for backbone quality when the gap
+is small; when the domain shift is large they recover roughly two-thirds of
+it ($+0.1076$ of $0.1565$) and no more. Stated as a single rule: parameter-
+efficient adaptation narrows backbone differences but does not reliably
+eliminate them, and the residual grows with the difficulty of the target
+domain.
+
 \subsection{Rank-monotonicity: projection versus repair}
 \label{sec:monotone-results}
 \begin{table}[!t]
@@ -528,23 +553,32 @@ Between $0.6$ and $5.9\%$ of LAC sets and $3.7$ to $12.8\%$ of APS sets are non-
 \label{sec:finetune-results}
 \begin{table}[!t]
 \centering
-\caption{Fine-tuning tiers on APTOS (seed 42, 5-fold CV, identical splits). Tiers differ only in which backbone parameters receive gradients.}
+\caption{Fine-tuning tiers on APTOS, 5-fold CV on identical splits; tiers differ only in which backbone parameters receive gradients. $n$ is the number of model seeds; the uncertainty is the across-seed standard deviation.}
 \label{tab:finetune}
-\begin{tabular}{llcccc}
+\begin{tabular}{llccccc}
 \toprule
-Tier & Trainable & QWK & Acc & Macro-F1 & MAE \\
+Tier & Trainable & QWK & Acc & MAE & $n$ \\
 \midrule
-Frozen head only & 295{,}168 & $0.8926 \pm 0.0079$ & 0.7900 & 0.6216 & --- \\
-LoRA $r{=}8$ & 1{,}081{,}600 & $0.9149 \pm 0.0109$ & 0.8270 & 0.6785 & 0.208 \\
-Progressive (last 4 blocks) & 50{,}813{,}184 & $0.9189 \pm 0.0086$ & 0.8310 & 0.6904 & 0.200 \\
-Full fine-tune & 304{,}383{,}232 & $0.8880 \pm 0.0057$ & 0.8033 & 0.6328 & 0.248 \\
+\multicolumn{6}{l}{\emph{RETFound ViT-L/16}} \\
+\quad Frozen head only & 295{,}168 & $0.8923 \pm 0.0002$ & 0.7935 & --- & 3 \\
+\quad LoRA $r{=}8$ & 1{,}081{,}600 & $0.9143 \pm 0.0006$ & 0.8240 & 0.212 & 3 \\
+\quad Progressive (last 4) & 50{,}813{,}184 & $0.9169 \pm 0.0015$ & 0.8290 & 0.203 & 3 \\
+\quad Full fine-tune & 304{,}383{,}232 & $0.8801 \pm 0.0105$ & 0.7953 & 0.262 & 3 \\
+\midrule
+\multicolumn{6}{l}{\emph{DINOv2 ViT-L/14}} \\
+\quad Frozen head only & 295{,}168 & $0.9074 \pm 0.0029$ & 0.8037 & --- & 3 \\
+\quad LoRA $r{=}8$ & 1{,}081{,}600 & $0.9156 \pm 0.0013$ & 0.8300 & 0.204 & 3 \\
+\quad Progressive (last 4) & 50{,}813{,}184 & $0.9114 \pm 0.0000$ & 0.8179 & 0.217 & 1 \\
+\quad Full fine-tune & 304{,}368{,}640 & $0.5383 \pm 0.0000$ & 0.5590 & 0.701 & 1 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Full fine-tuning is \emph{worse} than training no backbone parameter at all ($0.8880$ vs.\ $0.8926$) despite $1{,}031\times$ more trainable weights, and MAE degrades in step ($0.248$ vs.\ $0.208$): $2{,}636$ training images cannot support $304$M parameters. Progressive unfreezing of the last four blocks and LoRA are statistically indistinguishable ($+0.0040$ against a fold standard deviation near $0.01$), so LoRA matches the best tier with $47\times$ fewer trainable parameters. The parameter-efficiency curve is thus non-monotonic, peaking far below full capacity. This is a single-seed comparison, so the LoRA-versus-progressive ordering is not resolved; the frozen-to-LoRA and full-fine-tune-to-LoRA gaps are several fold standard deviations wide.
+Full fine-tuning is \emph{worse} than training no backbone parameter at all, on both backbones. On RETFound it reaches $0.8801$ against $0.8923$ frozen, despite $1{,}031\times$ more trainable weights, and MAE degrades in step ($0.262$ against $0.212$). Its across-seed spread is also $46$ times the frozen tier's ($0.0105$ against $0.0002$), so the failure is erratic rather than a uniform shift.
 
+On DINOv2 the same recipe fails outright. Mean QWK is $0.5383$, and the run is unstable rather than merely poor: one of the five folds collapsed to a constant predictor (QWK exactly $0$, validation accuracy pinned at the majority-class rate), and excluding that fold the remaining four average only $0.673$ against $0.907$ frozen. We attribute this to the learning rate rather than to the backbone: all tiers share the $10^{-4}$ backbone learning rate chosen for LoRA, which is far too aggressive when every one of $304$M parameters is updated on $2{,}636$ images. We did not tune it per tier, and a properly annealed schedule would very likely recover much of the loss. The defensible claim is therefore about the recipe, not about DINOv2: full fine-tuning at a parameter-efficient tier's hyperparameters is not merely wasteful but actively unstable.
 
+Between the two useful tiers, progressive unfreezing of the last four blocks and LoRA are statistically indistinguishable on RETFound ($+0.0026$ with across-seed standard deviations of $0.0015$ and $0.0006$), and LoRA is ahead on DINOv2 ($0.9156$ against $0.9114$). LoRA therefore matches the best tier with $47\times$ fewer trainable parameters. The parameter-efficiency curve is non-monotonic on both backbones, peaking far below full capacity.
 
 \subsection{Is the miscalibration the loss or the architecture?}
 \label{sec:loss-factorial}
