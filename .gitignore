@@ -60,3 +60,9 @@ kaggle.json
 
 # Submission bundle — derived from paper/submission/article.tex, rebuilt on demand.
 /paper/submission.zip
+
+# The submitted manuscript that was rejected. Kept locally as the revision
+# baseline, but it must not sit in a public repo that the resubmission cites
+# as its code link — a reader would find the superseded version alongside the
+# current one. The current manuscript is paper/submission/article.tex.
+/Trustworthy AI for Diabetic Retinopathy Grading.docx
