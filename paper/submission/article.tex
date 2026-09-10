@@ -198,7 +198,7 @@ Every row of the APTOS ablation is 3 seeds $\times$ 5 folds (seeds $\{42, 123, 4
 Table~\ref{tab:aptos} reports the head-level ablation on frozen RETFound features. Every row is 3 seeds $\times$ 5-fold CV.
 
 \begin{table*}[!t]
-    \caption{APTOS-2019 head ablation on frozen RETFound ViT-L/16 features. Every row is 3 seeds $\times$ 5-fold CV (seeds 42/123/456). QWK, Accuracy, and Macro-F1: higher is better. MAE: lower is better. Best value per column in \textbf{bold}.}
+    \caption{APTOS-2019 head ablation on frozen RETFound ViT-L/16 features. Every row is 3 seeds $\times$ 5-fold CV (seeds 42/123/456). QWK, Accuracy, and Macro-F1: higher is better. MAE: lower is better. Best value per column among the seven primary heads in \textbf{bold}; rows marked $\dag$ are loss and squash variants of row 6 and are excluded from that comparison.}
     \label{tab:aptos}
     \centering
     \footnotesize
@@ -206,24 +206,24 @@ Table~\ref{tab:aptos} reports the head-level ablation on frozen RETFound feature
         \toprule
         \# & Model                                       & QWK                          & Accuracy                     & Macro-F1                     & MAE                        \\
         \midrule
-        1  & Linear + CE                                 & $0.8389 \pm 0.0122$          & $0.7971 \pm 0.0038$          & $0.6011 \pm 0.0144$          & $0.291 \pm 0.011$          \\
-        2  & MLP + CE                                    & $0.8783 \pm 0.0022$          & $0.8057 \pm 0.0012$          & $0.6271 \pm 0.0021$          & $0.259 \pm 0.001$          \\
-        3  & MLP + MSE                                   & $0.8831 \pm 0.0011$          & $0.7445 \pm 0.0016$          & $0.5491 \pm 0.0069$          & $0.294 \pm 0.002$          \\
-        4  & MLP + Weighted CE                           & $0.8607 \pm 0.0014$          & $0.7679 \pm 0.0022$          & $0.6156 \pm 0.0046$          & $0.307 \pm 0.002$          \\
-        5  & Vanilla CapsNet                             & $0.8696 \pm 0.0026$          & $\mathbf{0.8061 \pm 0.0046}$ & $\mathbf{0.6301 \pm 0.0044}$ & $0.263 \pm 0.003$          \\
-        6  & Ordinal CapsNet                             & $\mathbf{0.8932 \pm 0.0004}$ & $0.7931 \pm 0.0021$          & $0.6255 \pm 0.0022$          & $\mathbf{0.254 \pm 0.002}$ \\
-        7  & MLP + $K{-}1$ sigmoid                       & $0.8866 \pm 0.0004$          & $0.7963 \pm 0.0041$          & $0.6250 \pm 0.0048$          & $0.257 \pm 0.003$          \\
-        8  & \quad Ordinal + Asymmetric loss$^{\dag}$    & $0.8923 \pm 0.0014$ & $0.7911 \pm 0.0025$ & $0.6201 \pm 0.0019$ & $0.256 \pm 0.004$ \\
-        9  & \quad Ordinal + KC Loss$^{\dag}$            & $0.8914 \pm 0.0006$ & $0.7819 \pm 0.0025$ & $0.6130 \pm 0.0028$ & $0.264 \pm 0.003$ \\
-        10 & \quad Ordinal + Non-uniform squash$^{\dag}$ & $0.8894 \pm 0.0006$ & $0.7857 \pm 0.0059$ & $0.6097 \pm 0.0095$ & $0.264 \pm 0.004$ \\
+        1  & Linear + CE                                 & $0.8389 \pm 0.0122$           & $0.7971 \pm 0.0038$           & $0.6011 \pm 0.0144$           & $0.291 \pm 0.011$ \\
+        2  & MLP + CE                                    & $0.8755 \pm 0.0014$           & $\mathbf{0.8091 \pm 0.0021}$ & $\mathbf{0.6325 \pm 0.0067}$ & $0.258 \pm 0.002$ \\
+        3  & MLP + MSE                                   & $0.8813 \pm 0.0012$           & $0.7438 \pm 0.0113$           & $0.5433 \pm 0.0051$           & $0.295 \pm 0.011$ \\
+        4  & MLP + Weighted CE                           & $0.8638 \pm 0.0021$           & $0.7796 \pm 0.0048$           & $0.6262 \pm 0.0074$           & $0.291 \pm 0.006$ \\
+        5  & Vanilla CapsNet                             & $0.8696 \pm 0.0026$           & $0.8061 \pm 0.0046$           & $0.6301 \pm 0.0044$           & $0.263 \pm 0.003$ \\
+        6  & Ordinal CapsNet                             & $\mathbf{0.8923 \pm 0.0002}$ & $0.7935 \pm 0.0075$           & $0.6259 \pm 0.0089$           & $\mathbf{0.256 \pm 0.006}$ \\
+        7  & MLP + $K{-}1$ sigmoid                       & $0.8849 \pm 0.0015$           & $0.7976 \pm 0.0088$           & $0.6235 \pm 0.0106$           & $0.258 \pm 0.010$ \\
+        8  & \quad Ordinal + Asymmetric loss$^{\dag}$    & $0.8924 \pm 0.0002$  & $0.7923 \pm 0.0041$           & $0.6247 \pm 0.0043$           & $0.257 \pm 0.003$ \\
+        9  & \quad Ordinal + KC Loss$^{\dag}$            & $0.8916 \pm 0.0005$           & $0.7840 \pm 0.0027$           & $0.6126 \pm 0.0045$           & $0.261 \pm 0.002$ \\
+        10 & \quad Ordinal + Non-uniform squash$^{\dag}$ & $0.8890 \pm 0.0001$           & $0.7893 \pm 0.0014$           & $0.6122 \pm 0.0034$           & $0.262 \pm 0.001$ \\
         \bottomrule
         \multicolumn{6}{l}{\scriptsize $^{\dag}$ Negative-result ablations. See Appendix~\ref{sec:negatives}.}
     \end{tabular}
 \end{table*}
 
-The $K{-}1$ ordinal decomposition is the larger head-level lever; capsule routing is a smaller second-order improvement on top of it. Moving from plain MLP+CE to MLP+$K{-}1$ lifts QWK by $+0.0083$. Adding capsule routing on top of MLP+$K{-}1$, which gives our Ordinal CapsNet head, lifts QWK by a further $+0.0066$. Both contributions are outside seed noise (across-seed std $\leq 0.0015$ on each row, against contribution sizes of $+0.0095$ and $+0.0073$).
+The $K{-}1$ ordinal decomposition is the larger head-level lever; capsule routing is a smaller second-order improvement on top of it. Moving from plain MLP+CE to MLP+$K{-}1$ lifts QWK by $+0.0094$. Adding capsule routing on top of MLP+$K{-}1$, which gives our Ordinal CapsNet head, lifts QWK by a further $+0.0074$. Both contributions are outside seed noise (across-seed std $\leq 0.0015$ on each row, against contribution sizes an order of magnitude larger).
 
-\textit{What fine-tuning buys.} For comparison, fine-tuning the RETFound backbone with LoRA r=8 (1.08M trainable parameters injected into the attention projections, $\approx$16h per seed on MPS) and keeping the same Ordinal CapsNet head reaches QWK $0.9127 \pm 0.0008$ on the same 3-seed 5-fold protocol, an additional $+0.020$ QWK over the same head on frozen RETFound features. The remainder of this paper analyses frozen-feature configurations on consumer hardware; we report LoRA only as a compute-tier anchor.
+\textit{What fine-tuning buys.} For comparison, fine-tuning the RETFound backbone with LoRA r=8 (1.08M trainable parameters injected into the attention projections, $\approx$16h per seed on MPS) and keeping the same Ordinal CapsNet head reaches QWK $0.9143 \pm 0.0006$ on the same 3-seed 5-fold protocol, an additional $+0.022$ QWK over the same head on frozen RETFound features. The remainder of this paper analyses frozen-feature configurations on consumer hardware; we report LoRA only as a compute-tier anchor.
 
 \subsection{Head\,$\times$\,Backbone 2$\times$2 ablation}
 \label{sec:head-backbone}
@@ -241,9 +241,9 @@ Table~\ref{tab:head_backbone} is the fully crossed ablation on APTOS and Messido
         \cmidrule(r){2-4}\cmidrule(l){5-7}
                         & RETFound                                    & DINOv2                                             & $\Delta$ backbone & RETFound            & DINOv2              & $\Delta$ backbone \\
         \midrule
-        Ordinal CapsNet & $0.8932 \pm 0.0004$                         & $0.9089 \pm 0.0021$                                & $+0.0157$         & $0.6065 \pm 0.0363$ & $0.7525 \pm 0.0222$ & $+0.1460$         \\
-        MLP + K-1 sig   & $0.8866 \pm 0.0004$                         & $0.9034 \pm 0.0002$                                & $+0.0168$         & $0.5852 \pm 0.0405$ & $0.7643 \pm 0.0148$ & $+0.1791$         \\
-        $\Delta$ head   & $+0.0066$                                   & $+0.0055$                                          & ---               & $+0.0213$           & $-0.0118$           & ---               \\
+        Ordinal CapsNet & $0.8923 \pm 0.0002$ & $0.9074 \pm 0.0029$ & $+0.0152$         & $0.6021 \pm 0.0454$ & $0.7586 \pm 0.0187$ & $+0.1565$         \\
+        MLP + K-1 sig   & $0.8849 \pm 0.0015$ & $0.9041 \pm 0.0007$ & $+0.0192$         & $0.5900 \pm 0.0312$ & $0.7587 \pm 0.0209$ & $+0.1687$         \\
+        $\Delta$ head   & $+0.0073$           & $+0.0033$           & ---               & $+0.0121$           & $-0.0002$           & ---               \\
         \bottomrule
     \end{tabular}
 \end{table*}
@@ -264,16 +264,16 @@ Table~\ref{tab:calibration} summarises the calibration and selective-prediction 
         \toprule
         Dataset    & Model                             & Acc            & ECE            & MCE            & AURC (max-p)   & AURC (margin)  & Renorm \\
         \midrule
-        APTOS      & RETFound $\times$ Ordinal CapsNet & 0.793          & 0.151          & 0.224          & 0.0599         & 0.0609         & 100\%  \\
-        APTOS      & RETFound $\times$ MLP-K1          & 0.796          & \textbf{0.091} & \textbf{0.174} & 0.0624         & 0.0604         & 86\%   \\
-        APTOS      & DINOv2 $\times$ Ordinal CapsNet   & 0.809          & 0.115          & 0.167          & \textbf{0.049} & \textbf{0.048} & 100\%  \\
-        APTOS      & DINOv2 $\times$ MLP-K1            & 0.805          & 0.102          & 0.173          & 0.051          & 0.049          & 100\%  \\
-        APTOS      & RETFound $\times$ Ordinal + LoRA  & 0.824          & 0.141          & 0.194          & 0.050          & 0.050          & 100\%  \\
+        APTOS      & RETFound $\times$ Ordinal CapsNet & 0.794           & 0.143           & 0.225           & 0.0591          & 0.0596          & 100\%  \\
+                   & RETFound $\times$ MLP-K1          & 0.798           & \textbf{0.098}  & 0.175           & 0.0617          & 0.0601          & 86\%   \\
+                   & DINOv2 $\times$ Ordinal CapsNet   & 0.804           & 0.120           & 0.191           & \textbf{0.0497} & 0.0495          & 100\%  \\
+                   & DINOv2 $\times$ MLP-K1            & \textbf{0.809}  & 0.103           & \textbf{0.169}  & 0.0500          & \textbf{0.0485} & 100\%  \\
+                   & RETFound $\times$ Ordinal + LoRA  & 0.824           & 0.131           & 0.181           & 0.0485          & 0.0477          & 100\%  \\
         \midrule
-        Messidor-2 & RETFound $\times$ Ordinal CapsNet & 0.556          & 0.083          & 0.208          & 0.258          & 0.257          & 100\%  \\
-        Messidor-2 & RETFound $\times$ MLP-K1          & 0.579          & 0.086          & 0.153          & 0.237          & 0.235          & 100\%  \\
-        Messidor-2 & DINOv2 $\times$ Ordinal CapsNet   & 0.658          & 0.132          & 0.231          & 0.187          & 0.187          & 100\%  \\
-        Messidor-2 & DINOv2 $\times$ MLP-K1            & \textbf{0.710} & 0.090          & 0.159          & \textbf{0.174} & \textbf{0.170} & 100\%  \\
+        Messidor-2 & RETFound $\times$ Ordinal CapsNet & 0.577           & 0.103           & 0.188           & 0.2380          & 0.2394          & 100\%  \\
+                   & RETFound $\times$ MLP-K1          & 0.584           & 0.083           & 0.154           & 0.2353          & 0.2360          & 100\%  \\
+                   & DINOv2 $\times$ Ordinal CapsNet   & \textbf{0.690}  & 0.121           & 0.194           & \textbf{0.1795} & \textbf{0.1786} & 100\%  \\
+                   & DINOv2 $\times$ MLP-K1            & 0.685           & \textbf{0.077}  & \textbf{0.132}  & 0.1882          & 0.1839          & 100\%  \\
         \bottomrule
     \end{tabular}
 \end{table*}
@@ -292,9 +292,9 @@ Table~\ref{tab:calibration} summarises the calibration and selective-prediction 
     \label{fig:risk_coverage_aptos}
 \end{figure}
 
-The capsule head is systematically worse-calibrated than the MLP-K1 sigmoid head on APTOS (ECE $0.151$ vs.\ $0.091$ at RETFound; $0.115$ vs.\ $0.102$ at DINOv2). The mechanistic reason is that the Sabour margin loss \cite{ref:sabour} is a geometric clamping objective, not a proper scoring rule. It pushes the positive-capsule length above $m^+=0.9$ and the negative below $m^-=0.1$ regardless of the empirical base rate, whereas cross-entropy and log-loss on sigmoid outputs are minimised only when the predicted probability matches the true posterior. The non-linear squash further compresses vector magnitudes in a class-symmetric way that decouples length from observed frequency. The capsule's high ECE is thus not a training artefact but a direct consequence of the loss. LoRA inherits the miscalibration (ECE $0.141$) while improving discrimination.
+The capsule head is worse-calibrated than the MLP-K1 sigmoid head in all four head$\times$backbone cells (APTOS ECE $0.143$ vs.\ $0.098$ at RETFound and $0.120$ vs.\ $0.102$ at DINOv2; Messidor-2 $0.103$ vs.\ $0.083$ and $0.121$ vs.\ $0.077$). The mechanistic reason is that the Sabour margin loss \cite{ref:sabour} is a geometric clamping objective, not a proper scoring rule. It pushes the positive-capsule length above $m^+=0.9$ and the negative below $m^-=0.1$ regardless of the empirical base rate, whereas cross-entropy and log-loss on sigmoid outputs are minimised only when the predicted probability matches the true posterior. The non-linear squash further compresses vector magnitudes in a class-symmetric way that decouples length from observed frequency. The capsule's high ECE is thus not a training artefact but a direct consequence of the loss. LoRA inherits the miscalibration (ECE $0.141$) while improving discrimination.
 
-Temperature scaling \cite{ref:guo_calibration} recovers most of the ECE gap (Table~\ref{tab:calibration_ts}). On APTOS the post-TS ECE is in the $0.016$ to $0.025$ range for every configuration, with fitted $T < 1$ everywhere (heads are over-confident and need softening). TS is less effective under domain shift (Messidor-2 post-TS ECE $0.030$ to $0.054$). It does not, however, close the Brier and NLL gap. Even post-TS, MLP-K1 ends up with the lowest Brier on Messidor-2 ($0.411$ vs.\ $0.444$ for DINOv2 $\times$ Ordinal CapsNet). The capsule head's probability estimates are recoverable as calibrated scalars via TS, but their joint distribution over classes remains inferior to a plainer head.
+Temperature scaling \cite{ref:guo_calibration} recovers most of the ECE gap (Table~\ref{tab:calibration_ts}). On APTOS the post-TS ECE is in the $0.011$ to $0.017$ range for every configuration, with fitted $T < 1$ everywhere. TS is less effective under domain shift (Messidor-2 post-TS ECE $0.022$ to $0.048$). It does not, however, close the Brier and NLL gap. Even post-TS, MLP-K1 ends up with the lowest Brier on Messidor-2 ($0.420$ vs.\ $0.432$ for DINOv2 $\times$ Ordinal CapsNet). The capsule head's probability estimates are recoverable as calibrated scalars via TS, but their joint distribution over classes remains inferior to a plainer head.
 
 The capsule \emph{prediction margin} is also a valid selective-prediction signal but not a unique one. Fig.~\ref{fig:risk_coverage_aptos} shows the corresponding risk--coverage curves: within each backbone the capsule and MLP curves are visually indistinguishable, while the DINOv2 curves dominate the RETFound ones. AURC (margin) and AURC (max-p) agree within $\pm 0.004$ on every cell, and a vanilla MLP-K1 top-2 margin matches both. The UQ value attributed in prior work to the capsule nonlinearity is duplicated by the chain-rule 5-class probabilities of any $K{-}1$ head, capsule or otherwise.
 
@@ -307,16 +307,16 @@ The capsule \emph{prediction margin} is also a valid selective-prediction signal
         \toprule
         Dataset & Model                    & T    & ECE$^{\text{pre}}$ & ECE$^{\text{post}}$ & Brier$^{\text{post}}$ & NLL$^{\text{post}}$ \\
         \midrule
-        APTOS   & RET$\times$Ord.\ Caps    & 0.57 & 0.152              & 0.016               & 0.286                 & 0.568               \\
-        APTOS   & RET$\times$MLP-K1        & 0.68 & 0.090              & 0.025               & \textbf{0.289}        & 0.577               \\
-        APTOS   & DINO$\times$Ord.\ Caps   & 0.63 & 0.119              & 0.020               & 0.262                 & 0.522               \\
-        APTOS   & DINO$\times$MLP-K1       & 0.60 & 0.099              & \textbf{0.016}      & 0.265                 & \textbf{0.500}      \\
-        APTOS   & RET$\times$Ord.\ +\,LoRA & 0.61 & 0.142              & 0.020               & \textbf{0.253}        & 0.511               \\
+        APTOS   & RET$\times$Ord.\ Caps    & 0.58                & 0.137               & 0.012               & 0.286               & 0.573 \\
+                & RET$\times$MLP-K1        & 0.66                & \textbf{0.094}      & 0.014               & 0.286               & 0.570 \\
+                & DINO$\times$Ord.\ Caps   & 0.60                & 0.120               & 0.016               & 0.268               & 0.523 \\
+                & DINO$\times$MLP-K1       & 0.61                & 0.102               & \textbf{0.011}      & \textbf{0.263}      & \textbf{0.503} \\
+                & RET$\times$Ord.\ +\,LoRA & 0.62                & 0.132               & 0.017               & 0.254               & 0.509 \\
         \midrule
-        Mess-2  & RET$\times$Ord.\ Caps    & 0.72 & 0.091              & 0.054               & 0.527                 & 0.999               \\
-        Mess-2  & RET$\times$MLP-K1        & 0.69 & 0.096              & 0.030               & 0.514                 & 0.981               \\
-        Mess-2  & DINO$\times$Ord.\ Caps   & 0.61 & 0.134              & 0.047               & 0.444                 & 0.840               \\
-        Mess-2  & DINO$\times$MLP-K1       & 0.72 & 0.097              & \textbf{0.032}      & \textbf{0.411}        & \textbf{0.756}      \\
+        Mess-2  & RET$\times$Ord.\ Caps    & 0.67                & 0.109               & 0.048               & 0.522               & 0.989 \\
+                & RET$\times$MLP-K1        & 0.75                & 0.081               & 0.028               & 0.516               & 0.995 \\
+                & DINO$\times$Ord.\ Caps   & 0.66                & 0.120               & 0.037               & 0.432               & 0.808 \\
+                & DINO$\times$MLP-K1       & 0.77                & \textbf{0.076}      & \textbf{0.022}      & \textbf{0.420}      & \textbf{0.781} \\
         \bottomrule
     \end{tabular}
 \end{table*}
@@ -336,25 +336,23 @@ Calibration is miscalibrated because the margin loss does not encourage it; conf
         \toprule
         Dataset    & Model                             & Marginal cov.     & Mean $|S|$               \\
         \midrule
-        APTOS      & RETFound $\times$ Ordinal CapsNet & $0.902 \pm 0.005$ & $1.38 \pm 0.02$          \\
-        APTOS      & RETFound $\times$ MLP-K1          & $0.904 \pm 0.005$ & $1.38 \pm 0.03$          \\
-        APTOS      & DINOv2 $\times$ Ordinal CapsNet   & $0.903 \pm 0.004$ & $1.33 \pm 0.02$          \\
-        APTOS      & DINOv2 $\times$ MLP-K1            & $0.903 \pm 0.004$ & $\mathbf{1.30 \pm 0.02}$ \\
-        APTOS      & RETFound $\times$ Ordinal + LoRA  & $0.904 \pm 0.006$ & $1.27 \pm 0.03$          \\
+        APTOS      & RETFound $\times$ Ordinal CapsNet & $0.903 \pm 0.006$ & $1.38 \pm 0.02$           \\
+                   & RETFound $\times$ MLP-K1          & $0.902 \pm 0.006$ & $1.37 \pm 0.02$           \\
+                   & DINOv2 $\times$ Ordinal CapsNet   & $0.906 \pm 0.003$ & $1.32 \pm 0.01$           \\
+                   & DINOv2 $\times$ MLP-K1            & $0.900 \pm 0.002$ & $\mathbf{1.29 \pm 0.01}$  \\
+                   & RETFound $\times$ Ordinal + LoRA  & $0.903 \pm 0.007$ & $1.28 \pm 0.02$           \\
         \midrule
-        Messidor-2 & RETFound $\times$ Ordinal CapsNet & $0.903 \pm 0.017$ & $2.30 \pm 0.11$          \\
-        Messidor-2 & RETFound $\times$ MLP-K1          & $0.905 \pm 0.011$ & $2.32 \pm 0.07$          \\
-        Messidor-2 & DINOv2 $\times$ Ordinal CapsNet   & $0.905 \pm 0.008$ & $1.94 \pm 0.08$          \\
-        Messidor-2 & DINOv2 $\times$ MLP-K1            & $0.900 \pm 0.004$ & $\mathbf{1.75 \pm 0.04}$ \\
+        Messidor-2 & RETFound $\times$ Ordinal CapsNet & $0.909 \pm 0.012$ & $2.33 \pm 0.05$           \\
+                   & RETFound $\times$ MLP-K1          & $0.904 \pm 0.012$ & $2.30 \pm 0.05$           \\
+                   & DINOv2 $\times$ Ordinal CapsNet   & $0.903 \pm 0.008$ & $1.85 \pm 0.03$           \\
+                   & DINOv2 $\times$ MLP-K1            & $0.903 \pm 0.006$ & $\mathbf{1.83 \pm 0.02}$  \\
         \bottomrule
     \end{tabular}
 \end{table*}
 
-Every configuration hits the $90\%$ coverage target (observed range $89.4\%$ to $90.6\%$), as expected from the exchangeability guarantee of split CP \cite{ref:vovk_conformal}; what we are empirically verifying is that the guarantee holds on our data pipeline and that set-size efficiency varies meaningfully across configurations. Mean set size falls from $1.38$ (RETFound $\times$ Ordinal CapsNet on APTOS) to $1.27$ (LoRA), and from $2.32$ (RETFound $\times$ MLP-K1 on Messidor-2) to $1.75$ (DINOv2 $\times$ MLP-K1): better backbones and better fine-tunes produce more informative prediction sets at the same coverage. RAPS \cite{ref:raps} ($k_{\text{reg}}=1$, $\lambda=0.01$) gives set sizes a hair smaller than APS (APTOS $1.77$ vs.\ $1.80$ on RETFound $\times$ CapsNet; differences in the third decimal on every cell), consistent with the original Angelopoulos 2021 report on ImageNet. Within each backbone, the capsule and MLP heads produce near-identical set sizes.
+Every configuration hits the $90\%$ coverage target (observed range $90.0\%$ to $90.9\%$), as expected from the exchangeability guarantee of split CP \cite{ref:vovk_conformal}; what we are empirically verifying is that the guarantee holds on our data pipeline and that set-size efficiency varies meaningfully across configurations. Mean set size falls from $1.38$ (RETFound $\times$ Ordinal CapsNet on APTOS) to $1.28$ (LoRA), and from $2.33$ (RETFound $\times$ Ordinal CapsNet on Messidor-2) to $1.83$ (DINOv2 $\times$ MLP-K1): better backbones and better fine-tunes produce more informative prediction sets at the same coverage. RAPS \cite{ref:raps} ($k_{\text{reg}}=1$, $\lambda=0.01$) gives set sizes a hair smaller than APS (differences in the second decimal or below on every cell), consistent with the original Angelopoulos 2021 report on ImageNet. Within each backbone, the capsule and MLP heads produce near-identical set sizes.
 
-\textbf{A note on non-contiguous sets.} The LAC, APS, and RAPS scores we use treat the five DR grades as an unordered label set, so their prediction sets can in principle be non-contiguous under the ordinal scale. For example, $\{0, 3\}$ is a valid prediction set even though it violates the ordinal semantics. Measured across our pooled 5-seed single-split predictions at $\alpha = 0.10$, the non-contiguous-set rate is $2.3\%$ (LAC), $8.6\%$ (APS), and $8.7\%$ (RAPS) on APTOS and $2.6\%$, $7.7\%$, $7.8\%$ on Messidor-2. The rates are concentrated on low-confidence samples near adjacent-grade decision boundaries. An ordinal-aware conformal construction that enforces contiguous intervals would not affect marginal coverage but would sharpen the prediction-set interpretation for clinical triage. We flag it as an open item alongside RC3P.
-
-\textbf{Class-conditional coverage and a Mondrian fix.} The interesting empirical finding is that the marginal guarantee does not transfer to per-class coverage. At $\alpha = 0.10$ with APS, worst-class coverage drops to $0.583$ (DINOv2 $\times$ MLP-K1, C4/PDR on Messidor-2), $0.667$ (DINOv2 $\times$ Ordinal on Messidor-2, C2/Moderate), and $0.78$--$0.84$ on APTOS minority classes (C1/Mild, C4/PDR). For a clinical-safety-sensitive task like DR grading, a $\approx$60\% coverage on Severe/PDR patients is a first-order problem, not a footnote. Substituting a Mondrian \cite{ref:mondrian} per-class quantile lifts worst-class coverage to $0.82$--$0.90$ across every configuration, at the cost of $+0.5$ set-size points on APTOS and $+1.0$--$1.2$ on Messidor-2 (Table~\ref{tab:ccp}). On the hardest cell (DINOv2 $\times$ MLP-K1 on Messidor-2) the worst-class jump is $+0.26$ ($0.58 \to 0.84$); the efficiency cost is a mean-set-size increase from $1.97$ to $2.38$. CCP is the closest-to-RC3P \cite{ref:rank_conformal} fix that does not require new training and is achievable under our MPS budget; for a clinical deployment, RC3P and related class-conditional extensions are the natural next step.
+\textbf{Class-conditional coverage and a Mondrian fix.} The interesting empirical finding is that the marginal guarantee does not transfer to per-class coverage. At $\alpha = 0.10$ with APS, worst-class coverage drops to $0.500$ (DINOv2 $\times$ MLP-K1, C4/PDR on Messidor-2) and $0.583$ (DINOv2 $\times$ Ordinal CapsNet, also C4/PDR), and to $0.77$--$0.84$ on APTOS minority classes (C1/Mild, C4/PDR). For a clinical-safety-sensitive task like DR grading, covering only half of proliferative-DR patients is a first-order problem, not a footnote. Substituting a Mondrian \cite{ref:mondrian} per-class quantile lifts worst-class coverage to $0.82$--$0.90$ across every configuration. The efficiency cost separates sharply by dataset: on APTOS it is between $-0.14$ and $+0.03$ set-size points, essentially free, whereas on Messidor-2 it is $+0.51$ to $+0.94$ (Table~\ref{tab:ccp}). On the hardest cell (DINOv2 $\times$ MLP-K1 on Messidor-2) the worst-class jump is $+0.32$ ($0.50 \to 0.82$) for a mean-set-size increase from $2.03$ to $2.54$. CCP is the closest-to-RC3P \cite{ref:rank_conformal} fix that does not require new training; for a clinical deployment, RC3P and related class-conditional extensions are the natural next step.
 
 \begin{table}[!t]
     \caption{Mondrian CCP vs.\ APS, $\alpha=0.10$, single-split seed 42. ``Worst'' is min per-class coverage; smaller gap to target (0.90) is better. CCP achieves class-conditional coverage at a set-size cost.}
@@ -366,16 +364,16 @@ Every configuration hits the $90\%$ coverage target (observed range $89.4\%$ to 
         Dataset & Model              & \multicolumn{2}{c}{APS} & \multicolumn{2}{c}{CCP} & $\Delta$ worst                            \\
                 &                    & worst                   & $|S|$                   & worst          & $|S|$ &                  \\
         \midrule
-        APTOS   & RET$\times$Ord     & 0.78                    & 1.80                    & 0.90           & 1.86  & $+0.12$          \\
-        APTOS   & RET$\times$MLP-K1  & 0.80                    & 1.89                    & 0.89           & 1.78  & $+0.09$          \\
-        APTOS   & DINO$\times$Ord    & 0.84                    & 1.73                    & 0.87           & 1.78  & $+0.03$          \\
-        APTOS   & DINO$\times$MLP-K1 & 0.84                    & 1.79                    & 0.88           & 1.65  & $+0.04$          \\
-        APTOS   & RET$\times$LoRA    & 0.78                    & 1.69                    & 0.90           & 1.80  & $+0.12$          \\
+        APTOS   & RET$\times$Ord     & 0.82                    & 1.81                    & 0.90           & 1.84  & $+0.08$           \\
+                & RET$\times$MLP-K1  & 0.77                    & 1.87                    & 0.90           & 1.84  & $+0.13$           \\
+                & DINO$\times$Ord    & 0.84                    & 1.76                    & 0.90           & 1.75  & $+0.06$           \\
+                & DINO$\times$MLP-K1 & 0.82                    & 1.80                    & 0.88           & 1.66  & $+0.06$           \\
+                & RET$\times$LoRA    & 0.79                    & 1.69                    & 0.90           & 1.67  & $+0.10$           \\
         \midrule
-        Mess-2  & RET$\times$Ord     & 0.74                    & 2.54                    & 0.88           & 3.48  & $+0.14$          \\
-        Mess-2  & RET$\times$MLP-K1  & 0.72                    & 2.50                    & 0.83           & 3.25  & $+0.11$          \\
-        Mess-2  & DINO$\times$Ord    & 0.67                    & 2.06                    & 0.82           & 2.95  & $+0.15$          \\
-        Mess-2  & DINO$\times$MLP-K1 & 0.58                    & 1.97                    & 0.84           & 2.38  & $\mathbf{+0.26}$ \\
+        Mess-2  & RET$\times$Ord     & 0.70                    & 2.50                    & 0.83           & 3.44  & $+0.14$           \\
+                & RET$\times$MLP-K1  & 0.75                    & 2.48                    & 0.83           & 3.41  & $+0.08$           \\
+                & DINO$\times$Ord    & 0.58                    & 2.03                    & 0.83           & 2.73  & $+0.25$           \\
+                & DINO$\times$MLP-K1 & 0.50                    & 2.03                    & 0.82           & 2.54  & $\mathbf{+0.32}$  \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -415,18 +413,17 @@ Cross-dataset APTOS$\to$Messidor-2 (no Messidor-2 training) collapses to QWK $\a
         \toprule
         Method                                                         & QWK                 & Bin.\ Sens.\      & Bin.\ AUC        \\
         \midrule
-        MLP + CE                                                       & $0.0000 \pm 0.0015$ & ---               & $0.579$          \\
-        MLP + MSE                                                      & $0.0037 \pm 0.0184$ & ---               & $0.587$          \\
-        Vanilla CapsNet                                                & $0.0010 \pm 0.0034$ & ---               & $0.570$          \\
-        Ordinal CapsNet (uncalibrated)                                 & $0.0086 \pm 0.0136$ & $17.9\%$          & $\mathbf{0.611}$ \\
-        \midrule
-        \textbf{Ordinal CapsNet + SLD prior corr.\ (APTOS prior, no labels)}    & $\mathbf{0.2216}$   & $\mathbf{51.9\%}$ & $0.625$          \\
-        Ordinal CapsNet + SLD prior corr.\ (oracle prior, upper bound) & $0.2682$            & ---               & ---              \\
+        MLP + CE                                                       & $0.0024 \pm 0.0008$ & ---               & $0.585$           \\
+        MLP + MSE                                                      & $0.0076 \pm 0.0039$ & ---               & $0.566$           \\
+        Vanilla CapsNet                                                & $0.0035 \pm 0.0034$ & ---               & $0.570$           \\
+        Ordinal CapsNet (uncalibrated)                                 & $0.0301 \pm 0.0185$ & $2.0\%$           & $\mathbf{0.620}$  \\
+        \textbf{Ordinal CapsNet + SLD prior corr.\ (APTOS prior, no labels)} & $\mathbf{0.2399}$   & $\mathbf{53.8\%}$ & $0.632$           \\
+        Ordinal CapsNet + SLD prior corr.\ (oracle prior, upper bound) & $0.2783$            & ---               & ---               \\
         \bottomrule
     \end{tabular}
 \end{table*}
 
-SLD-style prior correction lifts the ordinal ranking signal from QWK $0.009$ to $0.222$ and the binary sensitivity from $17.9\%$ to $51.9\%$ at an essentially unchanged AUC of $0.625$. The AUC is almost identical in all three rows, confirming that the rank information is preserved and the intervention is purely a threshold fix. We emphasise that QWK $0.222$ remains in the Landis-Koch \emph{fair} band ($0.21$ to $0.40$) and is far below the $\approx$0.60 clinical-agreement threshold. A binary sensitivity of $51.9\%$ would miss nearly half of all referable patients. The intervention is therefore a \emph{diagnostic probe} demonstrating that the cross-dataset collapse is mechanistically a threshold miscalibration rather than a feature-space destruction, not a clinical-deployment recipe. Fig.~\ref{fig:messidor2_roc} shows the binary-referable ROC.
+SLD-style prior correction lifts the ordinal ranking signal from QWK $0.030$ to $0.240$ and the binary sensitivity from $2.0\%$ to $53.8\%$ at an essentially unchanged AUC of $0.632$. The AUC is almost identical in all three rows, confirming that the rank information is preserved and the intervention is purely a threshold fix. We emphasise that QWK $0.240$ remains in the Landis-Koch \emph{fair} band ($0.21$ to $0.40$) and is far below the $\approx$0.60 clinical-agreement threshold. A binary sensitivity of $53.8\%$ would miss nearly half of all referable patients. The intervention is therefore a \emph{diagnostic probe} demonstrating that the cross-dataset collapse is mechanistically a threshold miscalibration rather than a feature-space destruction, not a clinical-deployment recipe. Fig.~\ref{fig:messidor2_roc} shows the binary-referable ROC.
 
 \begin{figure}[!t]
     \centering
@@ -499,7 +496,7 @@ domain.
 \label{sec:monotone-results}
 \begin{table}[!t]
 \centering
-\caption{Effect of the rank-monotonicity projection of Eq.~\eqref{eq:monotone}. A is the submitted decode (product, clipped, renormalised); C is the projection with exact cumulative differences. ``Viol.'' is the continuous-head violation rate.}
+\caption{Effect of the rank-monotonicity projection of Eq.~\eqref{eq:monotone}. A is the submitted decode (product, clipped, renormalised); C is the projection with exact cumulative differences. ``Viol.'' is the continuous-head violation rate. Metrics here use $\arg\max_k P(y{=}k)$ of the decoded distribution, so column A differs slightly from the ECE in Table~\ref{tab:calibration}, which scores the Eq.~\eqref{eq:predict} threshold rule.}
 \label{tab:monotone}
 \begin{tabular}{llccc}
 \toprule
@@ -749,17 +746,17 @@ Because head $k$ emits $P(y{>}k)$ directly, the referable-DR detector requires n
 \section{Discussion}
 \label{sec:discussion}
 
-On APTOS the backbone contributes $+0.016$ QWK while the head contributes $\leq 0.007$ QWK. On Messidor-2 the gap widens to $+0.15$ vs.\ $\pm 0.02$, an order of magnitude. The practical implication for anyone assembling a frozen-feature DR pipeline is to pick the backbone first and treat the head as a second-order choice. Isztl et al.\ \cite{ref:zoellin} reach a compatible conclusion from a different angle, reporting that RETFound's 303M-parameter budget is justified only for the hardest ordinal retinal task (DR grading) and that compact general-purpose ViTs Pareto-dominate on every easier retinal task. Specialised retinal pretraining pays off only in narrow settings.
+On APTOS the backbone contributes $+0.015$ to $+0.019$ QWK while the head contributes $+0.003$ to $+0.007$. On Messidor-2 the backbone contributes $+0.157$ to $+0.169$ while the head contributes $+0.012$ at most and vanishes to $-0.000$ under DINOv2, an order of magnitude apart. The practical implication for anyone assembling a frozen-feature DR pipeline is to pick the backbone first and treat the head as a second-order choice. Isztl et al.\ \cite{ref:zoellin} reach a compatible conclusion from a different angle, reporting that RETFound's 303M-parameter budget is justified only for the hardest ordinal retinal task (DR grading) and that compact general-purpose ViTs Pareto-dominate on every easier retinal task. Specialised retinal pretraining pays off only in narrow settings.
 
 The DINOv2-beats-RETFound result is consistent with the ocular half of Hou et al.\ \cite{ref:dinov2_vs_retfound} and Zoellin et al.\ \cite{ref:zoellin}, replicated here on ordinal DR grading across two datasets and two heads with per-fold paired Wilcoxon significance ($p \leq 0.001$ on APTOS, 5/5 fold wins on Messidor-2). The qualifier is that Zhou et al.'s recent RETFound-DINOv2 \cite{ref:zoellin} retrains the specialist backbone with the DINOv2 recipe and reports that the retrained specialist then beats generalist DINOv2 on ocular tasks with better data efficiency. What we are reporting is therefore a statement about the 2023 RETFound-MAE \cite{ref:retfound}, not a general indictment of domain-specific retinal pretraining. The mechanism most likely responsible is that the MAE objective on a narrow CFP distribution overfits to the pretraining cohort's camera and population characteristics in a way that the 142M-image DINOv2 contrastive objective does not.
 
-The capsule margin is a discrimination loss, not a calibration loss. ECE is $40$ to $60\%$ worse than the MLP-K1 sigmoid head on APTOS, AURC is within $0.004$ of MLP-K1, and temperature scaling recovers most of the ECE gap (post-TS $0.016$ to $0.025$). The capsule \emph{prediction margin} claimed in prior work as a native UQ signal turns out to be duplicated by a vanilla MLP-K1 top-2 margin. What the capsule head does deliver is a clean QWK/MAE advantage of $+0.007$ and $-0.003$ over MLP-K1 on APTOS ($p=0.0009$, 14/15 paired folds on RETFound; $p=0.0125$, 12/15 on DINOv2). The advantage is outside seed noise but small in magnitude, and it disappears entirely on Messidor-2 $\times$ DINOv2, where the two heads tie ($p = 1.00$). The capsule routing-and-squash machinery is a marginal QWK lever with a measurable calibration cost, not a UQ contribution.
+The capsule margin is a discrimination loss, not a calibration loss. ECE is $17$ to $46\%$ worse than the MLP-K1 sigmoid head on APTOS, AURC is within $0.003$ of MLP-K1, and temperature scaling recovers most of the ECE gap (post-TS $0.011$ to $0.017$). The capsule \emph{prediction margin} claimed in prior work as a native UQ signal turns out to be duplicated by a vanilla MLP-K1 top-2 margin. What the capsule head does deliver is a clean QWK/MAE advantage of $+0.007$ and $-0.003$ over MLP-K1 on APTOS ($p=0.0009$, 14/15 paired folds on RETFound; $p=0.0125$, 12/15 on DINOv2). The advantage is outside seed noise but small in magnitude, and it disappears entirely on Messidor-2 $\times$ DINOv2, where the two heads tie ($p = 1.00$). The capsule routing-and-squash machinery is a marginal QWK lever with a measurable calibration cost, not a UQ contribution.
 
 Split CP's marginal coverage at $\alpha = 0.10$ holds by construction. Our contribution is the empirical characterisation of its class-conditional failure mode on clinical minority grades (C3/Severe, C4/PDR down to $0.58$ to $0.77$ under LAC/APS/RAPS). Mondrian CCP \cite{ref:mondrian} lifts worst-class coverage to $0.82$ to $0.90$ at a $+0.5$ to $1.2$ set-size cost. This is acceptable for clinical triage where Severe/PDR under-coverage is a safety-critical failure, but still below the stricter guarantees of rank-calibrated RC3P \cite{ref:rank_conformal}, which we flag as the natural deployment-grade next step. Ahamed et al.\ \cite{ref:dr_conformal} recently showed that data augmentation choices interact non-trivially with CP coverage on DR grading, a complementary consideration for a production pipeline.
 
-Messidor-2 comes from different cameras, populations, and protocols. Under RETFound-MAE the $P(y{>}0)$ mean shift is $0.51 \to 0.087$ and $99.4\%$ of predictions collapse to Grade 0. Under DINOv2 the within-Messidor-2 QWK of $0.76$ suggests the features are more transferable, though we did not run cross-dataset DINOv2 in this draft (compute cut). The SLD prior correction demonstrates that the collapse is threshold-based and not representational, but the corrected QWK $0.222$ is \emph{fair} at best and we do not claim deployment viability. A principled deployment fix would combine a stronger backbone (DINOv2 or RETFound-DINOv2 \cite{ref:zoellin}) with target-prior estimation \cite{ref:bbse,ref:mlls} and class-conditional conformal bounds.
+Messidor-2 comes from different cameras, populations, and protocols. Under RETFound-MAE the $P(y{>}0)$ mean shift is $0.51 \to 0.087$ and $99.4\%$ of predictions collapse to Grade 0. Under DINOv2 the within-Messidor-2 QWK of $0.76$ suggests the features are more transferable, and the APTOS$\to$IDRiD transfer in Section~\ref{sec:idrid-dinov2} confirms it: the same backbone swap more than doubles cross-dataset agreement on that pair. We did not run the APTOS$\to$Messidor-2 transfer under DINOv2, so the prior-shift analysis below is specific to RETFound-MAE features. The SLD prior correction demonstrates that the collapse is threshold-based and not representational, but the corrected QWK $0.240$ is \emph{fair} at best and we do not claim deployment viability. A principled deployment fix would combine a stronger backbone (DINOv2 or RETFound-DINOv2 \cite{ref:zoellin}) with target-prior estimation \cite{ref:bbse,ref:mlls} and class-conditional conformal bounds.
 
-A note on benchmark positioning. We do not target the SOTA APTOS QWK of MAFNet ($0.936$) \cite{ref:mafnet} or Dual-SwinOrd ($0.937$) \cite{ref:dualswinord}, which use larger models and different protocols. Our DINOv2 $\times$ MLP-K1 Messidor-2 QWK $0.7643$ is, however, the highest frozen-feature Messidor-2 QWK we have seen reported at a 3-seed $\times$ 5-fold protocol.
+A note on benchmark positioning. We do not target the SOTA APTOS QWK of MAFNet ($0.936$) \cite{ref:mafnet} or Dual-SwinOrd ($0.937$) \cite{ref:dualswinord}, which use larger models and different protocols. Our best frozen-feature Messidor-2 QWK, $0.7587$ with DINOv2, is however the highest we have seen reported under a 5-fold within-dataset protocol.
 
 \section{Limitations}
 \label{sec:limitations}
@@ -777,7 +774,7 @@ On frozen foundation features for ordinal DR grading, the backbone is a larger a
 
 For completeness we report four negative results that did not appear in the main text; all use the RETFound $\times$ Ordinal CapsNet baseline as the reference.
 
-\textbf{Asymmetric ordinal loss} at $\lambda_{\text{up}}=\lambda_{\text{down}}=1.0$ yields QWK $0.8923 \pm 0.0014$ vs.\ the symmetric baseline $0.8932 \pm 0.0004$ ($-0.0009$ QWK, inside combined seed noise). The $K{-}1$ decomposition already produces a safety bias, so direction-aware weighting is redundant.
+\textbf{Asymmetric ordinal loss} at $\lambda_{\text{up}}=\lambda_{\text{down}}=1.0$ yields QWK $0.8924 \pm 0.0002$ against the symmetric baseline $0.8923 \pm 0.0002$, a difference of $+0.0001$ that is an exact tie for practical purposes. The $K{-}1$ decomposition already produces a safety bias, so direction-aware weighting is redundant.
 
 \textbf{KC Loss} (differentiable QWK surrogate at $\gamma = 0.3$) yields QWK $0.8914 \pm 0.0006$ ($-0.0018$, outside seed noise on the wrong side).
 

@@ -40,3 +40,25 @@ paper/submission/*.log
 #   version control — gives us a paper-history fallback if something is lost.
 #   The heavy artifacts (*.pt, *.npz, *.npy) are already excluded via the
 #   extension rules above, so large files stay local.
+
+# Credentials — never commit. Kaggle auth lives in ~/.kaggle/kaggle.json;
+# a copy in the repo root is a live API key one `git add -A` away from publication.
+kaggle.json
+*.kaggle.json
+
+# Bulk transfer artifacts pulled off the A100 box (features/preds tarballs plus
+# that machine's agent session history). Reproducible from results/ + data/.
+/vm_portable_export/
+
+# Submission bundle — derived from paper/submission/article.tex, rebuilt on demand.
+/paper/submission.zip
+
+# Superseded MPS-era result tables, kept on disk only as a provenance trail.
+# The canonical GPU equivalents are monotone_decode_table.*, clinical_metrics_table.*
+# and ordinal_conformal_table.*; these older files use different filenames, so
+# leaving them tracked invites quoting the wrong numbers into the paper.
+/results/legacy_product/
+/results/legacy_difference/
+/results/clinical_table.csv
+/results/clinical_table.md
+/results/decoder_ablation.md
