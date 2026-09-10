@@ -52,13 +52,3 @@ kaggle.json
 
 # Submission bundle — derived from paper/submission/article.tex, rebuilt on demand.
 /paper/submission.zip
-
-# Superseded MPS-era result tables, kept on disk only as a provenance trail.
-# The canonical GPU equivalents are monotone_decode_table.*, clinical_metrics_table.*
-# and ordinal_conformal_table.*; these older files use different filenames, so
-# leaving them tracked invites quoting the wrong numbers into the paper.
-/results/legacy_product/
-/results/legacy_difference/
-/results/clinical_table.csv
-/results/clinical_table.md
-/results/decoder_ablation.md
