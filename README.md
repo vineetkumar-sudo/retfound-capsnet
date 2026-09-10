@@ -1,14 +1,16 @@
 # RETFound-CapsNet
 
-**Ordinal Capsule Regression on Retinal Foundation Features: A parameter-efficient head for diabetic retinopathy with native uncertainty.**
+**Trustworthy AI for Diabetic Retinopathy Grading: Auditing Foundation Models, Capsule Networks, and Conformal Uncertainty.**
 
-This repository contains the code, configs, and lightweight result artifacts that accompany the paper *Ordinal Capsule Regression on Retinal Foundation Features* (draft in `paper/submission/article.pdf`). It trains a small capsule head (~295K params) on frozen RETFound ViT-L features, plus an optional LoRA rank-8 fine-tune (~1.08M params), and evaluates on APTOS-2019, IDRiD, and Messidor-2 with a capsule-native uncertainty signal.
+This repository contains the code, configs, and lightweight result artifacts that accompany the paper in `paper/submission/article.pdf`. It runs a fully-crossed audit of the three design choices in frozen-feature DR grading — the pretrained backbone (RETFound-MAE vs DINOv2), the head (ordinal capsule vs plain MLP with K−1 sigmoid thresholds), and the uncertainty layer (capsule-native confidence vs temperature scaling vs split conformal prediction) — on APTOS-2019, IDRiD, and Messidor-2.
+
+The short version of what we found: **the backbone is the dominant lever, the capsule head is a marginal one, and the capsule-native uncertainty signal does not survive an honest calibration audit.** Conformal prediction is the uncertainty layer that holds up, and only with a per-class quantile.
 
 ![DR grade examples](results/figures/fig_0_grade_samples.png)
 
 ## Abstract
 
-Diabetic retinopathy (DR) is graded on a five-point ordinal scale, but most deep-learning systems still treat it as a flat five-way classification problem. We take the ordinal structure seriously and put a small capsule-network head on top of frozen RETFound features, using Niu et al.'s K−1 binary decomposition so that each head asks a monotone question ("is the grade above threshold *k*?"). On APTOS-2019, evaluated with three seeds over five folds, the frozen head reaches a quadratic weighted kappa (QWK) of **0.8932 ± 0.0004** at only **295K** trainable parameters—roughly a thousand times smaller than fully fine-tuning the ViT-L backbone. A LoRA variant (rank 8, ~1.08M trainable parameters) lifts QWK to **0.9127 ± 0.0008** across three seeds and five folds, beating every CapsNet-based DR method we are aware of and sitting above strong CNN ensembles. The capsule length is a probability, which gives an uncertainty signal for free: the prediction margin `1 − (p_top1 − p_top2)` separates correct from misclassified samples with `p < 10⁻³⁰⁰` on APTOS, `p ≈ 5×10⁻⁴` on IDRiD, and `p < 10⁻³⁰⁰` within Messidor-2, without any additional loss term. A one-line post-hoc rank calibration recovers APTOS→Messidor-2 QWK from 0.014 to 0.222 and nearly triples binary sensitivity at equal AUC. We also report honest negatives: asymmetric ordinal loss, KC loss, the non-uniform squash of Gogulamudi et al., and routing-agreement variance all do nothing or hurt. Full 5-fold CV runs in ~2 minutes on a consumer MacBook (MPS).
+Automated diabetic retinopathy (DR) grading needs both accuracy and trustworthy uncertainty, but it is unclear which design choices actually drive either. The three candidates are the pretrained backbone, the prediction head on top, and the uncertainty layer wrapped around it. We run a fully-crossed ablation that varies all three on APTOS-2019 and Messidor-2, comparing a domain-specific backbone (RETFound-MAE) against a generalist one (DINOv2), a capsule-network head against a plain MLP with K−1 ordinal sigmoid thresholds, and capsule-native confidence against temperature scaling and split conformal prediction. Features are extracted once and frozen, so only the head trains, with three seeds and five-fold cross-validation. The backbone is the dominant lever. Swapping RETFound-MAE for DINOv2 lifts QWK by an order of magnitude more than swapping the head, while capsule routing adds little over the much simpler MLP+K−1 baseline and produces a systematically *under*-confident signal that a single-parameter temperature rescaling largely fixes. Split conformal prediction is the uncertainty layer that holds up. It delivers the requested coverage on average, but coverage collapses on rare grades unless a per-class quantile is used. Out of distribution, transfer from APTOS to Messidor-2 collapses to a single predicted grade until a prior-shift correction is applied, after which performance recovers part-way but stays well below clinical agreement. The contribution is a calibrated map of what helps frozen-feature DR grading, what does not, and where the in-domain numbers stop being trustworthy.
 
 ## Architecture
 
@@ -18,15 +20,32 @@ RETFound (frozen or LoRA-adapted on `attn.qkv`) → PrimaryCaps → four K−1 b
 
 ## Headline results (APTOS-2019, 3 seeds × 5-fold CV)
 
+All numbers below come from the A100 rerun that is canonical for the paper. Regenerate
+everything with `bash scripts/regenerate_all.sh`.
+
 | Model | QWK | Accuracy | Macro-F1 | MAE | Trainable params |
 |---|---:|---:|---:|---:|---:|
 | Linear + CE | 0.8389 ± 0.0122 | 0.7971 | 0.6011 | 0.291 | 5K |
-| MLP + CE | 0.8783 ± 0.0022 | 0.8057 | 0.6271 | 0.259 | 132K |
+| MLP + CE | 0.8755 ± 0.0014 | 0.8091 | 0.6325 | 0.258 | 132K |
+| MLP + K−1 sigmoid | 0.8849 ± 0.0015 | 0.7976 | 0.6235 | 0.258 | 329K |
 | Vanilla 5-class CapsNet | 0.8696 ± 0.0026 | 0.8061 | 0.6301 | 0.263 | ~300K |
-| **Ordinal CapsNet (frozen)** | **0.8932 ± 0.0004** | 0.7931 | 0.6255 | 0.254 | **295K** |
-| **Ordinal CapsNet + LoRA r=8** | **0.9127 ± 0.0008** | **0.8237** | **0.6627** | **0.214** | **1.08M** |
+| **Ordinal CapsNet (frozen)** | **0.8923 ± 0.0002** | 0.7935 | 0.6259 | 0.256 | **295K** |
+| **Ordinal CapsNet + LoRA r=8** | **0.9143 ± 0.0006** | **0.8240** | **0.6701** | **0.212** | 1.08M |
 
-See `results/aptos_final_table.md` for the full 10-row ablation (including asymmetric loss, KC loss, and non-uniform squash negatives), and `results/literature_comparison_table.md` for a side-by-side against published DR methods.
+The head is the smaller lever. Swapping the **backbone** to frozen DINOv2 ViT-L/14 beats
+all of it: APTOS QWK 0.8923 → **0.9074** for the capsule head and 0.8849 → **0.9041** for
+MLP+K−1, and on Messidor-2 the same swap is worth **+0.157 QWK**, roughly ten times the
+head effect. Under DINOv2 the two heads tie on Messidor-2 (−0.0002).
+
+Fine-tuning is non-monotonic in trainable parameters: frozen 0.8923 → LoRA r=8 **0.9143**
+→ progressive unfreezing of the last 4 blocks **0.9189** → full fine-tune **0.8880**. Full
+fine-tuning is *worse than training no backbone weights at all*, with 1,031× more trainable
+parameters — 2,636 training images cannot support 304M. Raising input resolution to 448 px
+also hurts (−0.009 QWK), because RETFound was pretrained at 224.
+
+See `results/aptos_final_table.md` for the full ablation (including the asymmetric-loss, KC-loss
+and non-uniform-squash negatives) and `results/literature_comparison_table.md` for a
+side-by-side against published DR methods.
 
 ## Install
 
@@ -86,7 +105,21 @@ uv run python scripts/extract_messidor2_features.py
 
 ## Reproduction
 
-Each "Day N" experiment is a self-contained script in `scripts/`. Every command below writes its numeric artifacts into `results/<experiment>/` and, for multi-seed runs, into `results/<experiment>/seed{42,123,456}/`.
+**One command reproduces the whole paper:**
+
+```bash
+bash scripts/regenerate_all.sh
+```
+
+That builds the 256/512 px image caches, extracts features at 224 and 448 for both
+backbones, trains all six backbone × tune-mode tiers plus the Messidor-2 and IDRiD arms,
+and then runs all ten metric scripts. It expects one A100-class GPU; the frozen tiers alone
+run fine on CPU or MPS.
+
+The rest of this section is the same pipeline broken into individually runnable steps. Each
+"Day N" experiment is a self-contained script in `scripts/`. Every command writes its numeric
+artifacts into `results/<experiment>/` and, for multi-seed runs, into
+`results/<experiment>/seed{42,123,456}/`.
 
 ### APTOS (Days 1–5, 11)
 
@@ -118,7 +151,7 @@ uv run python scripts/run_ordinal_capsnet.py \
 uv run python scripts/run_lora_ordinal.py --seeds 42,123,456 --resume
 ```
 
-`--resume` skips any fold whose `preds_fold{N}.npz` already exists, so you can Ctrl-C and re-invoke. Total wall-clock on Apple M-series MPS is ~16h.
+`--resume` is a footgun on a fresh clone: it reads the tracked `summary.json` *before* it globs for `preds_fold{N}.npz`, so it skips every fold and exits in seconds while printing the numbers from that summary. Pass `--force-redo`, or delete the stale `summary.json` files first. Total wall-clock is ~26 min per 5-fold run on an A100, or ~16 h on Apple M-series MPS.
 
 ### IDRiD (Day 8)
 
@@ -156,6 +189,23 @@ uv run python scripts/make_architecture_diagram.py
 cd paper/submission && pdflatex article.tex && pdflatex article.tex
 ```
 
+### Metrics and audit scripts
+
+These need no training — they read the cached per-fold predictions and take seconds on CPU.
+
+```bash
+uv run python scripts/compute_calibration_metrics.py    # ECE, MCE, AURC, risk-coverage
+uv run python scripts/compute_extended_calibration.py   # Brier, NLL, temperature scaling
+uv run python scripts/compute_monotone_decode.py        # antitonic projection vs product decode
+uv run python scripts/compute_loss_calibration.py       # loss x head factorial
+uv run python scripts/compute_conformal_metrics.py      # LAC / APS split conformal
+uv run python scripts/compute_ordinal_conformal.py      # RAPS, Mondrian CCP, OCP, set contiguity
+uv run python scripts/compute_clinical_metrics.py       # referable / vision-threatening DR
+uv run python scripts/compute_uda_baselines.py          # CORAL, BBSE, EM vs rank calibration
+uv run python scripts/compute_significance_tests.py     # paired Wilcoxon across folds
+uv run python scripts/profile_compute.py                # FLOPs, peak memory, throughput (needs CUDA)
+```
+
 ## Repository structure
 
 ```
@@ -190,39 +240,89 @@ retfound-capsnet/
 └── README.md                     # this file
 ```
 
-Heavy artifacts (`*.pt`, `*.pth`, `*.ckpt`, `*.npy`, `*.npz`) are gitignored everywhere; lightweight artifacts in `results/` (markdown tables, CSVs, JSON summaries, PNG/PDF figures) are tracked so the paper history is reproducible without re-running 20+ hours of training.
+Checkpoints (`*.pt`, `*.pth`, `*.ckpt`) and cached backbone features (`data/**/*.npy`) are
+gitignored. Everything in `results/` is tracked: markdown tables, CSVs, JSON summaries,
+PNG/PDF figures, **and the 413 per-fold prediction arrays** (`preds_fold*.npz`, 10 MB total).
+Those arrays are the evidence base for every number in the paper — each holds `y_true`,
+`y_pred` and the raw `head_probs`/`head_lengths` for one fold — so you can re-derive or
+audit any table cell without re-running 20+ hours of training. That is also how the metric
+scripts above run in seconds.
 
-## Uncertainty signals
+## Uncertainty signals — the honest audit
 
-The Ordinal CapsNet head ships with a prediction-margin UQ signal that needs no extra loss term. On the 3-seed APTOS pool:
+This is where the submitted version of the paper was wrong, and the corrected findings are
+the main reason this repository exists.
 
-- Prediction margin: Mann–Whitney U, p < 10⁻³⁰⁰ (frozen and LoRA)
-- DigitCap entropy: significant but weaker at low coverage
-- Routing-agreement variance: *inverted* signal (reported as a negative result)
-
-See Figures 10–13 in `paper/submission/article.pdf` and `scripts/make_day6_figures.py` for the accuracy–coverage curves.
+- **The capsule margin is a valid ranking score, not a calibrated probability.** As a
+  selective-prediction signal it is statistically significant (Mann–Whitney U, p < 10⁻³⁰⁰
+  on the 3-seed APTOS pool) but it is *matched* by the top-2 margin of a plain MLP+K−1
+  sigmoid head — AURC agrees within 0.002–0.004 in every cell. The "capsule-native UQ is a
+  free strong signal" claim does not survive.
+- **The capsule head is consistently worse calibrated than MLP+K−1** at comparable accuracy
+  (APTOS ECE 0.143 vs 0.098). LoRA lifts accuracy to 0.824 but does not fix calibration.
+- **The heads are under-confident, not over-confident.** Accuracy exceeds mean confidence in
+  every equal-mass bin of all nine configurations, and the fitted temperature is below 1.
+- **Most of the miscalibration is the loss, not the architecture — but not all of it.** A
+  loss × head factorial shows that replacing the Sabour margin loss with plain BCE improves
+  ECE by −0.079 (capsule) and −0.087 (MLP); at matched loss the capsule head is *still*
+  worse by +0.032 to +0.061. Best cell is MLP+K−1 with BCE at ECE **0.0181** against 0.1581
+  for capsule+margin — 8.7× better calibrated for −0.0065 QWK.
+- **Ordinal coherence is a free fix.** The raw heads violate rank monotonicity on 4.2%–62.2%
+  of samples. Projecting onto the antitonic cone ∩ unit box (exact, via PAVA, O(K)) then
+  decoding by telescoping differences roughly **halves ECE** everywhere, with no held-out
+  split and no fitted parameter. See `src/calibration.py`.
+- **Conformal prediction holds up; class-conditional coverage does not.** Marginal coverage
+  is within ±0.006 of the 90% target everywhere regardless of head miscalibration, but
+  worst-class coverage falls to 0.583 under APS. LAC/APS/RAPS also emit *non-contiguous*
+  grade sets 0.6%–12.8% of the time, which is meaningless on an ordinal scale; our **OCP**
+  score removes all of them for +0.04 mean set size. See `src/conformal.py`.
+- **Routing-agreement variance is an inverted signal** — rejecting high-"uncertainty"
+  samples *lowers* accuracy on APTOS. Reported as a negative result, not hidden.
 
 ## Cross-dataset and post-hoc calibration
 
-APTOS → Messidor-2 collapses to QWK ~0.01 because the RETFound CLS feature distribution shifts (mean P(y>0) drops 0.51 → 0.087). Rank order is preserved (binary AUC 0.61), so a one-line rank calibration against the APTOS training prior—no target labels—recovers QWK to 0.222 and binary sensitivity from 17.9% to 51.9%. See `scripts/posthoc_rank_calibration_messidor2.py`.
+**APTOS → Messidor-2** collapses to QWK 0.030 because the RETFound CLS feature distribution
+shifts: mean P(y>0) drops 0.51 → 0.087, so every head fires "No" and 99.4% of images are
+predicted Grade 0. Rank order survives (binary AUC 0.620), so this is a *threshold* failure,
+not a feature-space one. A one-line rank calibration against the APTOS training prior — no
+target labels — recovers QWK to **0.240** and referable sensitivity from 2.0% to **53.8%**
+(oracle prior: 0.278). It stays in the Landis–Koch *fair* band, well below clinical
+agreement, so we report it as a diagnostic probe rather than a deployment recipe. We also
+tested what reviewers suggested instead: CORAL feature alignment reaches only 0.174, and
+posterior reweighting (BBSE, Saerens EM) fails outright at 0.049 and 0.0005 because the
+decoded posterior has saturated at P(y=0) ≈ 1 and multiplicative reweighting cannot move the
+arg-max. See `scripts/posthoc_rank_calibration_messidor2.py`, `scripts/compute_uda_baselines.py`
+and `results/uda_table.md`.
+
+**APTOS → IDRiD** tells the opposite story, and it is the reason the pessimistic reading of
+cross-dataset transfer is specific to RETFound-MAE rather than general: the same transfer
+rises from QWK 0.279 under RETFound to **0.626** under DINOv2 — within noise of the 0.657
+obtained by training on IDRiD directly.
 
 ## Hardware
 
-- **Frozen pipeline**: consumer Apple M-series MacBook (MPS). Full 5-fold APTOS CV in ~115 s.
-- **LoRA fine-tune**: same hardware. ~65–85 min per fold, ~16 h for 3 seeds × 5 folds.
-- Everything is implemented for CPU, CUDA, and MPS; no A100 class GPU is required.
+- **Canonical hardware is a single NVIDIA A100-SXM4-40GB.** Every number in the paper comes
+  from that machine, driven end-to-end by `bash scripts/regenerate_all.sh`. Wall-clock for
+  the full 5-fold APTOS run: 2 min frozen, 26 min LoRA r=8, 26 min progressive, 54 min full
+  fine-tune.
+- **The frozen tier genuinely runs on a laptop**: full 5-fold APTOS CV in ~2 min on an Apple
+  M-series MacBook (MPS). This is the compute-efficient tier and it needs no GPU.
+- **The fine-tuned tiers do not.** LoRA takes ~16 h for 3 seeds × 5 folds on MPS against
+  ~26 min on the A100.
+- Everything is implemented for CPU, CUDA, and MPS. Results across backends agree to within
+  seed noise for the frozen tier, but the published numbers are the CUDA ones.
 
 ## Citation
 
 If you use this code, please cite the paper draft:
 
 ```bibtex
-@article{kumar2026ordcapretfound,
-  title   = {Ordinal Capsule Regression on Retinal Foundation Features:
-             A Parameter-Efficient Head for Diabetic Retinopathy with Native Uncertainty},
+@article{kumar2026trustworthydr,
+  title   = {Trustworthy AI for Diabetic Retinopathy Grading: Auditing Foundation
+             Models, Capsule Networks, and Conformal Uncertainty},
   author  = {Kumar, Vineet},
   year    = {2026},
-  note    = {Draft, April 2026. Code: https://github.com/vineetkumar-sudo/retfound-capsnet}
+  note    = {Draft. Code: https://github.com/vineetkumar-sudo/retfound-capsnet}
 }
 ```
 

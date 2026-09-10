@@ -23,7 +23,9 @@
 - `src/uncertainty.py` — digit-cap entropy, routing-agreement variance, prediction margin
 - `scripts/` — one `run_*.py` / `make_*.py` / `aggregate_*.py` per experiment day
 - `configs/` — YAML hyperparameters per experiment
-- `data/`, `experiments/`, `results/` — all gitignored
+- `data/` — gitignored (raw images, feature caches, backbone weights).
+- `results/` — **tracked**: metric summaries, aggregated tables, figures. The
+  `.npy`/`.npz` prediction and feature arrays inside it are gitignored.
 
 ## Datasets
 - APTOS 2019: `uv run kaggle competitions download -c aptos2019-blindness-detection -p data/aptos/`
@@ -53,50 +55,163 @@
 - `uv run python scripts/make_architecture_diagram.py` — Day 7 architecture pipeline figure
 - `uv run python scripts/extract_idrid_features.py` / `run_idrid.py` / `cross_dataset_aptos_to_idrid.py` / `aggregate_day8.py` / `make_day8_figures.py` — Day 8 IDRiD + cross-dataset
 - `uv run python scripts/extract_messidor2_features.py` / `run_messidor2.py` / `cross_dataset_aptos_to_messidor2.py` / `aggregate_day9.py` / `make_day9_figures.py [--strict]` — Day 9 Messidor-2 + cross-dataset
-- `uv run python scripts/run_lora_ordinal.py [--resume] [--force-redo]` — LoRA fine-tune: RETFound ViT-L (frozen) + LoRA r=8 adapters on `attn.qkv` + Ordinal CapsNet head. `--resume` skips folds whose `preds_fold{N}.npz` already exists — safe to Ctrl-C then restart. No W&B by design.
+- `uv run python scripts/run_lora_ordinal.py [--resume] [--force-redo]` — LoRA fine-tune: RETFound ViT-L (frozen) + LoRA r=8 adapters on `attn.qkv` + Ordinal CapsNet head. `--resume` is a footgun: it reads the tracked `summary.json` *before* globbing `preds_fold{N}.npz`, so on a fresh clone it skips every fold and exits in seconds while printing stale numbers. Use `--force-redo`, or delete the stale `summary.json` files first. No W&B by design.
+- `bash scripts/regenerate_all.sh` — **canonical end-to-end pipeline on one A100**:
+  image caches, 224/448 feature extraction for both backbones, all six
+  backbone×tune-mode tiers, Messidor-2 and IDRiD arms, then all ten metric
+  scripts. This is the single source of every number in the paper.
 - `uv add <pkg>` — add dependency
 
 ## Experimental findings
 
-### Within-dataset
-- **APTOS Day 3 champion (frozen backbone)**: ordinal CapsNet + margin loss → 3 seeds × 5-fold CV QWK 0.8932 ± 0.0004 (MAE 0.254 ± 0.002 — best in ablation table), frozen 10% holdout QWK ≈ 0.883. Wins QWK + MAE; MLP+CE wins Accuracy narrowly (0.8064), Vanilla CapsNet wins Macro F1 (0.6327) — ordinal trades raw top-1 accuracy for fewer distant errors (what QWK / MAE reward). ~295K trainable params, 115 s full 5-fold CV on MPS.
-- **APTOS LoRA fine-tune**: RETFound ViT-L with LoRA rank 8 (α=16, dropout 0.05, targets fused `attn.qkv` in all 24 blocks) + same Ordinal CapsNet head. 3 seeds × 5-fold CV (seeds 42, 123, 456) → **QWK 0.9127 ± 0.0008** (across-seed std), Accuracy 0.8237 ± 0.0068, Macro F1 0.6627 ± 0.0105, MAE 0.214 ± 0.006. **+0.020 QWK / −0.040 MAE over frozen Ordinal CapsNet**. Per-seed means 0.9139 / 0.9123 / 0.9121 — extraordinarily tight (spread of only 0.002 QWK across seeds; across-seed std ~15× tighter than fold-level std, indicating LoRA is highly stable). ~1.08 M trainable (303 M frozen). Per-fold runtime ≈ 65–85 min on MPS (~16 h wall-clock for 3-seed 5-fold). Driver: `scripts/run_lora_ordinal.py --seeds 42,123,456 --resume` (resume skips any fold whose `preds_fold{N}.npz` already exists, so interrupted runs are safe to re-invoke). Implication for the paper: offer frozen as the compute-efficient tier (runs on consumer hardware in 2 min) and LoRA as the performance tier (1.1 M params, still pocket-size vs 307 M full fine-tune).
-- **IDRiD (Day 8, 413 train / 103 test)**: Ordinal wins *val* QWK (0.7557) but MLP+MSE wins *test* QWK (0.4652 vs Ordinal 0.4456). Every model drops ~0.30 QWK val→test equally — an IDRiD split characteristic, not a CapsNet weakness.
-- **Messidor-2 (Day 9, 5-fold CV on 1,744 gradable)**: Ordinal wins QWK cleanly — 0.6065 ± 0.036 vs next-best 0.5566 (MLP+MSE). Largest within-dataset lead in the paper. Per-class: Mild +28.5 pp, Severe +24.0 pp, PDR +20.0 pp vs Vanilla (Grade 0 regresses −18 pp — the known safety-bias tradeoff).
+> **Provenance — read this before quoting any number.** Every figure below comes
+> from the **A100 rerun (September 2026)**, which is the canonical hardware for
+> the paper. The earlier MPS-era numbers that this section used to record
+> (frozen QWK 0.8932, MLP+K-1 0.8866, Messidor-2 0.6065, ECE 0.1514, LoRA
+> 0.9127, and the "DINOv2 × MLP-K1 is the Pareto winner" claim) are
+> **superseded**: the rerun moved several of them enough to change conclusions,
+> not just digits. The authoritative sources, in order, are
+> (1) the tables in `paper/submission/article.tex`, which have been audited
+> cell-by-cell against `preds_fold*.npz`, (2) the script-generated tables in
+> `results/*.{md,csv}`, and (3) the raw per-fold predictions. Regenerate
+> everything with `scripts/regenerate_all.sh`. Read pre-rounded CSVs with care —
+> deriving a table from a 4-decimal CSV double-rounds.
 
-### Cross-dataset (frozen backbone → unseen hospital/camera)
-- **APTOS → IDRiD** (Day 8): QWK 0.273 (Ordinal ensemble). All models drop heavily; IDRiD cameras differ from Aravind imagers.
-- **APTOS → Messidor-2** (Day 9): QWK collapses to ~0.01 for every model. **Diagnosis: the ordinal heads' mean P(y>0) drops from 0.51 on APTOS to 0.087 on Messidor-2**, so every head fires "No" on virtually every sample and predictions collapse to Grade 0 for 1741/1744 images. Binary AUC best case 0.611 (Ordinal). This is a domain-shift finding, not a method bug — rank calibration (match predicted positive rate to train rate, as used in the earlier Kaggle submission) would likely recover a substantial fraction, but was not applied here per the "no silent fallbacks" rule.
+### APTOS-2019 (3 seeds × 5-fold CV unless noted)
 
-### Loss ablations (APTOS)
-- **Day 4** (asymmetric ordinal loss): λ=1.0/1.0 A_baseline essentially matches vanilla ordinal — 3-seed QWK 0.8923 ± 0.0014 vs Ordinal 0.8932 ± 0.0004 (−0.0009, inside combined noise). Previous runs reported bit-identical 0.8932 = 0.8932 via a shared code path; after the Day-11 clean rerun the asymmetric loss constructor routes through a slightly different RNG path, producing a tiny seed-level drift. K-1 decomposition already produces safety bias (U/O < 1) — direction weighting is redundant.
-- **Day 5A** (KC Loss / differentiable QWK at γ=0.3): slightly worse across every column (QWK 0.8914 vs 0.8932, MAE 0.264 vs 0.254). Negative result.
+| Config | QWK | Acc | Macro-F1 | MAE | Trainable |
+|---|---|---|---|---|---|
+| Linear probe + CE | 0.8389 ± 0.0122 | 0.7971 | 0.6011 | 0.291 | — |
+| MLP + CE | 0.8755 ± 0.0014 | 0.8091 | 0.6325 | 0.258 | 132 K |
+| MLP + K-1 sigmoid | 0.8849 ± 0.0015 | 0.7976 | 0.6235 | 0.258 | 329 K |
+| Vanilla CapsNet | 0.8696 ± 0.0026 | 0.8061 | 0.6301 | 0.263 | — |
+| **Ordinal CapsNet (frozen)** | **0.8923 ± 0.0002** | 0.7935 | 0.6259 | 0.256 | **295 K** |
+| **Ordinal CapsNet + LoRA r=8** | **0.9143 ± 0.0006** | **0.8240** | **0.6701** | **0.212** | 1.08 M |
 
-### Architecture ablations (APTOS)
-- **Day 11** (Gogulamudi non-uniform squash, `v = s / (1 + ‖s‖)` replacing Sabour's `v = (‖s‖² / (1 + ‖s‖²))·(s/‖s‖)` inside both PrimaryCaps and all four DigitCaps routing iterations, everything else held at the Day-3 champion config): 3 seeds × 5-fold CV (42, 123, 456) → QWK 0.8894 ± 0.0006, Acc 0.7857 ± 0.0059, F1 0.6097 ± 0.0095, MAE 0.264 ± 0.004. Vs. frozen Ordinal CapsNet 3-seed baseline (QWK 0.8932 ± 0.0004) this is −0.0038 QWK, −0.007 Acc, −0.016 F1, +0.010 MAE — small but genuinely outside seed noise (both stds are < 0.001). Negative result confirmed at multi-seed granularity. Driver: `scripts/run_ordinal_capsnet.py --config configs/ordinal_capsnet_nonuniform.yaml --seeds 42,123,456 --no-wandb` (~10 min, MPS). Plumbed via `squash_variant` kwarg on PrimaryCaps / DigitCaps / OrdinalCapsNet (default `"sabour"` keeps every prior run bit-identical).
-- **Day 12** (MLP + K-1 sigmoid ordinal head — direct no-capsule comparator): 3 seeds × 5-fold CV (42, 123, 456), identical K-1 decomposition + OrdinalMarginLoss + cached RETFound features, only the capsule machinery swapped for MLP trunk (1024 → 256 → 256 → 4 sigmoid heads, 329K trainable — capacity-matched to OrdinalCapsNet's 295K). Result: QWK **0.8866 ± 0.0004**, Acc **0.7963 ± 0.0041**, F1 **0.6250 ± 0.0048**, MAE **0.257 ± 0.003**, holdout QWK 0.8742 ± 0.0043. Isolates two contributions: **(a) K-1 decomposition alone** (MLP+CE 0.8783 → MLP+K1 0.8866) buys **+0.0083 QWK** and **−0.002 MAE**; **(b) capsule routing on top of K-1** (MLP+K1 0.8866 → Ordinal CapsNet 0.8932) adds a further **+0.0066 QWK** and **−0.003 MAE**. Both contributions are outside seed noise (all three rows have std ≤ 0.0004 across seeds). Capsules therefore explain ~45% of the total ordinal-head lift over plain MLP+CE. Implication for the paper: move the narrative weight onto UQ (capsule length is a calibrated probability, MLP sigmoid is not natively so) rather than onto raw QWK, where capsule contribution is small-but-clean. Driver: `scripts/run_ordinal_capsnet.py --config configs/mlp_ordinal.yaml --seeds 42,123,456 --no-wandb` (~6 min MPS), ~0.29s/epoch. Plumbed via `model.arch: mlp` dispatch in `build_model`; default `capsnet` keeps all prior runs bit-identical.
+Contribution split on identical features: K-1 decomposition alone buys
+**+0.0094** QWK (MLP+CE → MLP+K-1); capsule routing on top adds a further
+**+0.0074** (MLP+K-1 → Ordinal CapsNet). Both outside seed noise (all stds
+≤ 0.0015), but the head effect is small — the paper's weight sits on the
+ordinal-coherence and UQ machinery, not on raw QWK.
 
-### Backbone ablations
+### Fine-tuning tiers (APTOS, identical splits)
 
-- **Day 12B** (DINOv2 ViT-L/14 backbone ablation on APTOS + Messidor-2): frozen `dinov2_vitl14` via torch.hub, 1024-dim CLS (matches RETFound's feature dim), identical Resize-256 bicubic + CenterCrop-224 + ImageNet-norm preprocessing, same K-1 OrdinalMarginLoss head. Four cells, 3 seeds × 5-fold each. **APTOS**: Ordinal CapsNet **0.9089 ± 0.0021** (+0.0157 vs RETFound), MLP+K1 **0.9034 ± 0.0002** (+0.0168 vs RETFound). **Messidor-2 within**: Ordinal CapsNet **0.7525 ± 0.0222** (+0.146 QWK vs RETFound 0.6065), MLP+K1 **0.7643 ± 0.0148** (+0.179 QWK vs RETFound 0.5852). **Key findings: (i)** DINOv2 beats RETFound at frozen-feature DR grading cleanly across both datasets and both heads, reproducing the external head-to-head literature; **(ii)** backbone effect (+0.016 APTOS / +0.146 Messidor-2) dominates the head effect (≤ +0.021 QWK) by ~10× on Messidor-2; **(iii)** on Messidor-2 DINOv2 the head ranking flips — MLP+K1 **beats** Ordinal CapsNet by +0.012 QWK, suggesting capsules' contribution saturates and can reverse under sufficiently strong features. Complete numbers + artifact paths in `results/head_backbone_grid.md`. Drivers: `scripts/extract_dinov2_features.py` (~7 min feature cache, MPS); `scripts/run_ordinal_capsnet.py --config configs/{ordinal_capsnet,mlp_ordinal}_dinov2.yaml --seeds 42,123,456`; `scripts/run_messidor2.py --features-dir data/messidor2/features_dinov2 --output-dir results/messidor2_dinov2 --models {ordinal_capsnet,mlp_k1_sigmoid}` (each ~4–6 min MPS). `run_messidor2.py` extended with `--features-dir` / `--output-dir` CLI overrides + `mlp_k1_sigmoid` model id (routes through same ordinal-loss / predict paths as `ordinal_capsnet` since MLPOrdinal emits the same `head_lengths` schema).
+Frozen 0.8923 → LoRA r=8 **0.9143** → progressive (last 4 blocks) **0.9189**
+→ full fine-tune **0.8880**. Full fine-tuning is *worse than training no
+backbone weights at all* despite 1,031× more trainable parameters — 2,636
+training images cannot support 304 M. LoRA and progressive are statistically
+indistinguishable, so LoRA wins on 47× fewer parameters. The
+parameter-efficiency curve is **non-monotonic**.
 
-### Calibration + selective prediction
+### Backbone: DINOv2 beats RETFound everywhere
 
-- **Day 13A** (ECE + MCE + AURC + risk-coverage on all 9 head×backbone configs): across APTOS (pooled 3 seeds × 5-fold, N=9,885) and Messidor-2 (5-fold, N=1,744). ECE uses 10 equal-mass bins; confidence = P(y=predicted_grade) from the chain-rule 5-class probability derived from K-1 heads. Headline result: **capsule heads are consistently WORSE calibrated than the MLP-K1 sigmoid baseline**. APTOS ECE: RETFound CapsNet 0.1514 vs RETFound MLP-K1 **0.0912** (MLP-K1 is 40% better calibrated at comparable accuracy); DINOv2 0.1151 vs 0.1015 same direction. Prediction margin and max-prob are near-tied as selectors (AURC agrees within 0.002–0.004 everywhere), so **the capsule margin is a valid selective-prediction signal but not a uniquely strong one** — a vanilla MLP-K1 sigmoid matches it. LoRA lifts APTOS accuracy to 0.8237 but does NOT improve calibration (ECE 0.1415 vs frozen 0.1514 — within 1 pt), a known fine-tuning pathology. On Messidor-2 DINOv2 × MLP-K1 is the clean Pareto winner: best Acc (0.7099), best ECE (0.0902), best AURC (0.1736). **Implication for the paper: the "capsule-native UQ is a free strong signal" claim does not survive honest ECE analysis.** Drivers: `src/calibration.py`, `scripts/compute_calibration_metrics.py` (~3 s CPU, no training). Full numbers and rebrand implications in `results/uq_findings_summary.md`.
+APTOS QWK: CapsNet 0.8923 → **0.9074** (+0.0152), MLP+K-1 0.8849 → **0.9041**
+(+0.0192). Messidor-2 within: CapsNet 0.6021 → **0.7586** (+0.1565), MLP+K-1
+0.5900 → **0.7587** (+0.1687). The backbone effect dominates the head effect by
+~10× on Messidor-2, and under DINOv2 the two heads are a dead tie there
+(−0.0002) — capsule contribution saturates under stronger features.
 
-- **Day 13B** (Split conformal prediction, LAC + APS scores, α ∈ {0.10, 0.05}): 5 random cal/test 50:50 splits per config. **Marginal coverage holds everywhere** — every row within ±0.006 of the 90% target at α=0.10 and ±0.01 at α=0.05, confirming conformal works regardless of the head's miscalibration. Mean set size at 90% coverage: APTOS **1.27–1.38** (LoRA smallest → RETFound CapsNet largest; capsule vs MLP-K1 virtually tied), Messidor-2 **1.75–2.32** (DINOv2 × MLP-K1 smallest → RETFound × CapsNet largest). However **class-conditional coverage breaks**: on Messidor-2, worst-class coverage under APS drops to **0.583** (DINOv2 × MLP-K1, C4/PDR) and **0.667** (DINOv2 × CapsNet, C2/Moderate) — 24 to 32 pp below the 0.90 marginal target. This is a known limitation of LAC/APS that motivates the 2024 NeurIPS "Augmented Label Rank Calibration" extension cited as future work. Drivers: `src/conformal.py` (LAC + APS scores + randomised tie-break), `scripts/compute_conformal_metrics.py` (~1 s CPU). Artifacts: `results/conformal_table.{md,csv}`, `results/conformal_metrics.json`.
+**Input resolution is not the lever either.** Re-extracting at 448 px (position
+embedding resampled 14×14 → 28×28) makes grading *worse*: −0.0094 QWK for the
+capsule head, −0.0079 for MLP+K-1, consistent across all three seeds. RETFound
+was pretrained at 224 and pays more for the token-grid mismatch than it gains
+in lesion detail.
+
+### Calibration — the honest-audit results
+
+- The capsule head is **consistently worse calibrated** than MLP+K-1 at
+  comparable accuracy. APTOS ECE 0.143 vs 0.098; Messidor-2 0.103 vs 0.083.
+  This survived every re-run; it is the central negative result.
+- **The heads are UNDER-confident, not over-confident** — in all 10
+  equal-mass bins, and the fitted temperature is < 1. The submitted paper
+  claimed the opposite in both the prose and a table caption. Do not
+  reintroduce the over-confidence framing.
+- **Loss × head factorial separates two confounded causes.** Swapping the
+  Sabour margin loss for plain BCE improves ECE by −0.079 (capsule) and
+  −0.087 (MLP). At matched loss the capsule head is still worse by +0.032 to
+  +0.061. The original single-cause attribution to the margin loss was half
+  right. Best cell: MLP+K-1 with BCE at ECE **0.0181** vs 0.1581 for
+  capsule+margin — 8.7× better calibrated for −0.0065 QWK.
+- LoRA raises accuracy to 0.824 but does **not** fix calibration
+  (ECE 0.131 vs frozen 0.143) — the known fine-tuning pathology.
+- Prediction margin and max-prob are near-tied as selective-prediction
+  signals (AURC within 0.002–0.004 everywhere), so the capsule margin is a
+  *valid* but not *uniquely strong* signal. The "capsule-native UQ is a free
+  strong signal" claim does not survive.
+
+### Ordinal coherence (`src/calibration.py`)
+
+The legacy product decode `q_{k-1}(1−q_k)` requires renormalisation on
+**86–100% of samples**, because the row sum is ≥ 1 by algebra except in
+degenerate saturated cases. It is a property of the decode itself, *not* a
+DINOv2 or a miscalibration symptom, which is what the submitted paper implied. Rank-monotonicity violations in the raw heads run 4.2%–62.2%
+depending on cell. Projecting onto the antitonic cone ∩ unit box (exact, via
+PAVA, O(K)) then decoding by telescoping differences roughly **halves ECE**
+in every configuration: APTOS capsule 0.1469 → **0.0715**, Messidor-2 MLP+K-1
+0.0860 → **0.0387**. The one exception is the already-well-calibrated
+MLP+BCE cell, where the projection is marginally harmful (0.0221 vs 0.0181).
+`mode="isotonic"` is the default decoder; `"difference"` and `"product"`
+reproduce the legacy paths.
+
+### Conformal prediction (`src/conformal.py`)
+
+Marginal coverage holds everywhere (within ±0.006 of 90% at α=0.10), which is
+the point — conformal works regardless of head miscalibration. Mean set size
+1.28–1.38 on APTOS, 1.83–2.33 on Messidor-2. **Class-conditional coverage
+breaks** without Mondrian conditioning: worst-class coverage falls as low as
+0.583 under APS. LAC/APS/RAPS also emit **non-contiguous** grade sets 0.6%–12.8%
+of the time, which is clinically meaningless for an ordinal scale; **OCP**
+(nested-interval score) removes all of them at +0.04 mean set size and beats
+the interval-hull baseline in all 8 cells.
+
+### Cross-dataset transfer
+
+- **APTOS → IDRiD**: RETFound QWK 0.2788 → DINOv2 **0.6259**. That is within
+  noise of training on IDRiD directly (0.6573) and clears the ≈0.60
+  clinical-agreement bar. The submitted paper's pessimistic transfer
+  conclusion is **specific to RETFound-MAE features**, not general.
+- **APTOS → Messidor-2**: collapses to QWK ~0.017 for every model — a
+  *threshold* collapse, not a feature-space failure. Mean `P(y>0)` drops
+  0.51 → 0.087, so every head fires "No" and 99.7% of images are predicted
+  Grade 0, while binary AUC is preserved at 0.620. SLD prior correction with
+  **no target labels** recovers QWK to **0.2399** and referable sensitivity
+  from 2.0% to 53.8% (oracle prior upper bound 0.2783). A stronger backbone
+  alone does not fix this one.
+- **IDRiD within-dataset** (413 train / 103 official test): every model loses
+  0.21–0.35 QWK val → test. Roughly a third of that gap was the backbone, not
+  the split — DINOv2 lifts test QWK by +0.196 to +0.220 on all four models.
+
+### Clinical operating points (referable DR, grade ≥ 2, at `P(y>1)` = 0.5)
+
+Every APTOS row clears the NHS DESP bar (sens ≥ 0.85, spec ≥ 0.80) — best is
+RETFound × Ordinal + LoRA at sens 0.954 / spec 0.931. **Every Messidor-2 row
+fails**, best sens 0.744 (DINOv2 × MLP+K-1) against the 0.85 minimum. The
+screening claim is APTOS-only and the paper says so.
 
 ### Methodology
-- **All APTOS ablation-table rows use 3 seeds × 5-fold CV (42, 123, 456)** except LoRA (row 9) which remains single-seed due to ~10-h compute cost for multi-seed. Data splits (10 % holdout + 5-fold) are fixed by `cfg.data.seed`; only model init RNG varies. Multi-seed runners: `scripts/run_baselines.py --seeds ...`, `scripts/run_ordinal_capsnet.py --seeds ...`, or `scripts/run_capsnet.py --model-seed ... --output-dir ...` in a shell loop. Single-seed invocation preserves the legacy flat output layout for backwards-compat. Multi-seed invocation writes per-seed subdirs `plots_dir/seed{S}/`, which the Day-6 aggregator pools across.
 
-### UQ (Day 5B, validated on 3 datasets)
-- **Prediction margin** (1 − [top1 − top2] via chain-rule probs): strongest signal everywhere. APTOS p<1e-300, IDRiD p=4.7e-4, Messidor-2 within p<1e-300 & cross p=1.9e-29.
-- **DigitCap entropy**: modest lift at low coverage; not a competitor to prediction margin.
-- **Routing-agreement variance**: *inverted* — rejecting high-"uncertainty" samples LOWERS accuracy on APTOS. Honest negative, included in Figure D as the third curve.
+- All APTOS ablation rows are 3 seeds × 5-fold CV (42, 123, 456), LoRA
+  included. Splits are fixed by `cfg.data.seed`; only model-init RNG varies.
+- 10% frozen holdout carved out before CV (seed 42), then 5-fold stratified
+  on the remaining 90%.
+- Multi-seed runs write `plots_dir/seed{S}/`; single-seed keeps the legacy
+  flat layout for backwards compatibility.
+- **`run_lora_ordinal.py --resume` reads the tracked `summary.json` before
+  globbing predictions**, so on a fresh clone it skips every fold and exits in
+  seconds while printing stale numbers. Use `--force-redo`, or delete the
+  stale `summary.json` files first.
 
 ### Known negative results (paper findings, not failures)
-- Day 4 asymmetric loss (no gain over vanilla ordinal)
-- Day 5A KC Loss (small loss vs margin loss)
-- Day 11 non-uniform squash (small loss vs Sabour squash; Gogulamudi's reported gain doesn't reproduce on frozen-RETFound + K-1 binary heads)
-- Cross-dataset generalisation without calibration (frozen features don't transfer out-of-domain)
-- Routing-variance UQ signal is weakly inverted
+
+- Asymmetric ordinal loss — no gain over vanilla ordinal (K-1 already
+  produces safety bias, U/O < 1, so direction weighting is redundant).
+- KC Loss / differentiable QWK at γ=0.3 — slightly worse on every column.
+- Gogulamudi non-uniform squash — small loss vs Sabour squash; the reported
+  gain does not reproduce on frozen RETFound + K-1 binary heads.
+- Full fine-tuning — worse than a frozen backbone (see tiers above).
+- 448 px input — worse than 224 px for both heads.
+- Focal loss — worse calibration than both margin and BCE.
+- Routing-agreement variance as a UQ signal — *inverted*: rejecting
+  high-"uncertainty" samples lowers accuracy on APTOS. Reported honestly as
+  the third curve in the UQ figure.
+- Cross-dataset transfer without any correction (see above).

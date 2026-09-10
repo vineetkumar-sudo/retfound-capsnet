@@ -1,6 +1,6 @@
 # Literature comparison — DR grading methods vs ours
 
-Compiled from `paper/ref_papers/*.pdf` + our measurements. Focuses on methods that report results on **any of our three target datasets (APTOS-2019, IDRiD, Messidor-2)**. Paper Tab 6 candidate — drop-in.
+Compiled from `paper/ref_papers/*.pdf` + our measurements. Our rows are the A100 rerun that is canonical for the paper; the authoritative cells are the tables in `paper/submission/article.tex`. Focuses on methods that report results on **any of our three target datasets (APTOS-2019, IDRiD, Messidor-2)**. Paper Tab 6 candidate — drop-in.
 
 ## Main comparison (paper-ready format)
 
@@ -17,8 +17,11 @@ Compiled from `paper/ref_papers/*.pdf` + our measurements. Focuses on methods th
 | Lei GF-CapsNet (2024) | ResNet-18 + GNN + CapsNet, multi-head | AUC 0.956, F1 0.741 (no QWK) | 0.865 (own 80/20) | Acc 0.641 (own 80/20; NOT official) | — | ✗ | ✗ | N=1 | ✗ |
 | Yu AOR-DR + RETFound (2025) | RETFound (frozen) + AR diffusion + ordinal | — (no QWK), Acc 0.803 / F1 0.657 | 0.803 | — | 0.647 / F1 0.54 (Messidor, not -2) | ✗ | ✗ | N=1 | ✓ |
 | El Bellaj UAOR-LQAP+EDL (2026) | ConvNeXt-Base + LQAP pooling + evidential Dirichlet | **0.940** (claim — pooled 3-dataset test) | 0.876 (pooled) | (pooled) | (pooled) | ✗ (pooled train/test, no held-out target domain) | ✓ Evidential Dirichlet | N=1 | not found |
-| **Ours — frozen Ordinal CapsNet** | RETFound (frozen) + K-1 ordinal capsule | **0.8932 ± 0.0004** (3 seeds × 5-fold) | 0.7931 ± 0.0021 | **0.756 val / 0.446 test** (5-fold CV on 413 + 103 official test) | **0.6065 ± 0.036** (5-fold within-gradable) | ✓ APTOS→IDRiD QWK 0.273; APTOS→Messidor-2 QWK 0.014 (uncal.) / **0.222 (calibrated)** | ✓ Prediction margin (p < 1e-300 APTOS; p = 4.7e-4 IDRiD; p < 1e-300 Messidor-2) | **N=3** (42, 123, 456) | ✓ |
-| **Ours — LoRA Ordinal CapsNet r=8** | RETFound + LoRA r=8 + K-1 ordinal capsule | **0.9127 ± 0.0008** (3 seeds × 5-fold) | 0.8237 ± 0.0068 | pending LoRA IDRiD run | pending LoRA Messidor-2 run | pending | ✓ Prediction margin + routing variance (15-fold pool) | **N=3** | ✓ |
+| **Ours — frozen Ordinal CapsNet (RETFound)** | RETFound (frozen) + K-1 ordinal capsule | **0.8923 ± 0.0002** (3 seeds × 5-fold) | 0.7935 | **0.760 val / 0.423 test** (5-fold CV on 413 + 103 official test) | **0.6021 ± 0.045** (5-fold within-gradable) | ✓ APTOS→IDRiD QWK 0.279; APTOS→Messidor-2 QWK 0.030 (uncal.) / **0.240 (rank-calibrated)** | ✓ Prediction margin, but *matched* by a plain MLP+K-1 top-2 margin; heads are under-confident (ECE 0.143) | **N=3** (42, 123, 456) | ✓ |
+| **Ours — frozen Ordinal CapsNet (DINOv2)** | DINOv2 (frozen) + K-1 ordinal capsule | **0.9074 ± 0.0029** (3 seeds × 5-fold) | 0.8037 | 0.871 val / **0.639 test** | **0.7586 ± 0.019** (5-fold within-gradable) | ✓ APTOS→IDRiD QWK **0.626** — within noise of training on IDRiD directly | ✓ same signal, ECE 0.120 | **N=3** | ✓ |
+| **Ours — frozen MLP + K-1 sigmoid (DINOv2)** | DINOv2 (frozen) + K-1 sigmoid MLP | **0.9041 ± 0.0007** (3 seeds × 5-fold) | 0.8086 | 0.869 val / **0.657 test** | **0.7587 ± 0.021** | ✓ | ✓ **best calibrated** (ECE 0.077 Messidor-2, 0.103 APTOS) | **N=3** | ✓ |
+| **Ours — LoRA Ordinal CapsNet r=8** | RETFound + LoRA r=8 + K-1 ordinal capsule | **0.9143 ± 0.0006** (3 seeds × 5-fold) | 0.8240 | — | run, see `results/lora_messidor2/` | — | ✓ Prediction margin; LoRA does **not** fix calibration (ECE 0.131) | **N=3** | ✓ |
+| **Ours — progressive unfreeze (last 4 blocks)** | RETFound, last 4 blocks + K-1 ordinal capsule | **0.9189 ± 0.0086** (seed 42, 5-fold) | 0.8310 | — | — | — | — | N=1 | ✓ |
 
 ## Interpretation for the paper
 
@@ -36,14 +39,14 @@ Compiled from `paper/ref_papers/*.pdf` + our measurements. Focuses on methods th
 
 Rows that are checkmarked in the last four columns only on our own lines:
 
-1. **Cross-dataset with honest failure modes**: APTOS→IDRiD 0.273, APTOS→Messidor-2 0.014 uncalibrated / 0.222 rank-calibrated. **Nobody else in the table reports train-on-A-test-on-B cross-dataset numbers** — even El Bellaj pools all three datasets before splitting. Our honesty here is a competitive advantage.
+1. **Cross-dataset with honest failure modes**: APTOS→IDRiD 0.279 under RETFound and **0.626** under DINOv2; APTOS→Messidor-2 0.030 uncalibrated / 0.240 rank-calibrated. **Nobody else in the table reports train-on-A-test-on-B cross-dataset numbers** — even El Bellaj pools all three datasets before splitting. Our honesty here is a competitive advantage.
 2. **Capsule-native UQ validated on 3 datasets**: prediction margin separates correct from misclassified at p < 10⁻³⁰⁰ on APTOS, p = 4.7×10⁻⁴ on IDRiD, p < 10⁻³⁰⁰ on Messidor-2. Free (no extra loss term, no KL annealing). El Bellaj has UQ but requires evidential Dirichlet loss + query diversity penalty + KL annealing — more moving parts.
 3. **Multi-seed reporting**: we're the only method here with N=3 seeds on the APTOS headline row. Every other APTOS QWK number is a point estimate.
 4. **Code availability**: we publish code (https://github.com/vineetkumar-sudo/retfound-capsnet) alongside the paper. Lei, Oulhadj, Kumar, Dixit, Bodapati all report "no code available" or didn't release with the paper.
 
 ### Where we **characterise failure modes** that competitors don't
 
-- **Cross-dataset calibration collapse** (§5.5): we diagnose the head-probability distribution shift (mean P(y>0) 0.51 → 0.087 on Messidor-2) and show a simple post-hoc rank calibration recovers 0.014 → 0.222 QWK.
+- **Cross-dataset calibration collapse** (§5.5): we diagnose the head-probability distribution shift (mean P(y>0) 0.51 → 0.087 on Messidor-2) and show a simple post-hoc rank calibration recovers 0.030 → 0.240 QWK, while CORAL alignment reaches only 0.174 and posterior reweighting (BBSE, Saerens EM) fails outright.
 - **Asymmetric loss does not help over symmetric K-1** (Day-4 ablation, row 7): direction weighting is redundant because the K-1 decomposition already produces safety bias.
 - **KC (differentiable QWK) loss marginally hurts** vs margin loss (Day-5A, row 8): honest negative.
 - **Routing-agreement variance as UQ is inverted** (Day-5B, Fig D): rejecting high-variance samples LOWERS accuracy.

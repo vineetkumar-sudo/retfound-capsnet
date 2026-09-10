@@ -1,13 +1,16 @@
 # Compute + Parameter Budget — DR Methods Comparison
 
-Compiled from `paper/ref_papers/*.pdf` + our measurements. Ordered by trainable-parameter count (smallest first). All APTOS QWK figures are on the Kaggle APTOS-2019 public training set (3,662 images) — paper-reported numbers may use slightly different splits; we list the evaluation protocol in the rightmost column.
+Compiled from `paper/ref_papers/*.pdf` + our measurements. Our rows are the A100 rerun that is canonical for the paper; FLOPs, peak memory and throughput are in `results/compute_profile_table.md`. Ordered by trainable-parameter count (smallest first). All APTOS QWK figures are on the Kaggle APTOS-2019 public training set (3,662 images) — paper-reported numbers may use slightly different splits; we list the evaluation protocol in the rightmost column.
 
 ## Main comparison table
 
 | Method | Year | Backbone | **Trainable params** | Total params (incl. frozen) | Training hardware | Training time (full pipeline) | APTOS QWK | Evaluation |
 |---|---|---|---:|---:|---|---|---:|---|
-| **Ours (frozen Ordinal CapsNet)** | — | RETFound ViT-L (**frozen**) | **295 K** | ~303 M | MacBook Pro M-series (MPS) | **~115 s** (1-seed 5-fold) | **0.8932 ± 0.0004** | 3 seeds × 5-fold CV |
-| **Ours (LoRA Ordinal CapsNet)** | — | RETFound ViT-L + LoRA r=8 | **1.08 M** | ~304 M | MacBook Pro M-series (MPS) | **~16 h** (3-seed × 5-fold) | **0.9127 ± 0.0008** | 3 seeds × 5-fold CV |
+| **Ours (frozen Ordinal CapsNet)** | — | RETFound ViT-L (**frozen**) | **295 K** | ~304 M | NVIDIA A100-SXM4-40GB (also runs on MacBook MPS) | **~2 min** (5-fold) | **0.8923 ± 0.0002** | 3 seeds × 5-fold CV |
+| **Ours (frozen Ordinal CapsNet, DINOv2)** | — | DINOv2 ViT-L/14 (**frozen**) | **295 K** | ~304 M | NVIDIA A100-SXM4-40GB | **~2 min** (5-fold) | **0.9074 ± 0.0029** | 3 seeds × 5-fold CV |
+| **Ours (LoRA Ordinal CapsNet)** | — | RETFound ViT-L + LoRA r=8 | **1.08 M** | ~304 M | NVIDIA A100-SXM4-40GB (~16 h on MPS) | **~26 min** (5-fold) | **0.9143 ± 0.0006** | 3 seeds × 5-fold CV |
+| **Ours (progressive unfreeze, last 4 blocks)** | — | RETFound ViT-L, last 4 blocks | **50.8 M** | ~304 M | NVIDIA A100-SXM4-40GB | **~26 min** (5-fold) | **0.9189 ± 0.0086** | seed 42, 5-fold CV |
+| **Ours (full fine-tune)** | — | RETFound ViT-L, all weights | **304 M** | ~304 M | NVIDIA A100-SXM4-40GB | **~54 min** (5-fold) | **0.8880 ± 0.0057** | seed 42, 5-fold CV |
 | Dixit EfficientNetB3+SE | 2025 | EfficientNetB3 + SE block | ~12 M | ~12 M | GPU (type not reported) | not reported | "κ 0.88" (ambiguous Cohen vs QWK) | 80/10/10 single split |
 | Lei GF-CapsNet | 2024 | ResNet-18 + GNN + CapsNet | ~13 M | ~13 M | GPU (type not reported) | not reported | — (AUC 0.956, Acc 0.865) | 80/20 single split |
 | Kumar Stage-Aware | 2025 | ResNet-50 + MSE regression | ~25 M | ~25 M | GPU (type not reported) | not reported | 0.8992 | single val split |
@@ -35,8 +38,8 @@ Compiled from `paper/ref_papers/*.pdf` + our measurements. Ordered by trainable-
 
 ## Data for the paper's Fig / Tab 7
 
-- **Headline claim**: "Our frozen Ordinal CapsNet achieves competitive APTOS QWK (0.8932 ± 0.0004) using only **295 K** trainable parameters — a ~1000× reduction over typical fine-tuned approaches."
-- **Secondary claim**: "LoRA rank-8 adaptation lifts QWK to **0.9127 ± 0.0008** at **1.08 M** trainable parameters — still ~80× below the RETFound full fine-tune and ~90× below El Bellaj's ConvNeXt-Base."
+- **Headline claim**: "Our frozen Ordinal CapsNet achieves competitive APTOS QWK (0.8923 ± 0.0002) using only **295 K** trainable parameters — a ~1000× reduction over typical fine-tuned approaches."
+- **Secondary claim**: "LoRA rank-8 adaptation lifts QWK to **0.9143 ± 0.0006** at **1.08 M** trainable parameters — still ~280× below the RETFound full fine-tune and ~80× below El Bellaj's ConvNeXt-Base. Full fine-tuning all 304 M weights is *worse* than the frozen head (0.8880), so the parameter-efficiency curve is non-monotonic."
 - **Tertiary**: "Both variants train on consumer Apple Silicon; no A100 required. Frozen runs full 5-fold CV in under 2 minutes."
 
 ## Verified (from the actual PDFs)

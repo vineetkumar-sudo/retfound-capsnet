@@ -38,8 +38,16 @@ paper/submission/*.log
 #   The blanket `/results/` rule was removed so that lightweight artifacts
 #   (markdown tables, CSVs, json summaries, png/pdf figures, logs) land in
 #   version control — gives us a paper-history fallback if something is lost.
-#   The heavy artifacts (*.pt, *.npz, *.npy) are already excluded via the
-#   extension rules above, so large files stay local.
+#   Checkpoints (*.pt/*.pth/*.ckpt) and cached features (data/**/*.npy) stay
+#   excluded via the extension rules above, so large files stay local.
+#
+#   The exception below re-admits the per-fold prediction arrays. They are the
+#   evidence base for every number in the paper — 10 MB for all 413 of them —
+#   so tracking them lets anyone re-derive the tables and audit a cell without
+#   re-running 20+ h of training. Feature caches under /data/ are unaffected:
+#   that directory is excluded wholesale, and a directory exclusion cannot be
+#   undone by a file negation.
+!results/**/*.npz
 
 # Credentials — never commit. Kaggle auth lives in ~/.kaggle/kaggle.json;
 # a copy in the repo root is a live API key one `git add -A` away from publication.

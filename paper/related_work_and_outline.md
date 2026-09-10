@@ -2,7 +2,18 @@
 
 Generated from a close read of all 11 PDFs in `paper/ref_papers/`. This document is a working reference for drafting the paper — numbers, claims, and framing pointers live here.
 
-> **Last update (2026-04-22)** — 3-seed LoRA rerun complete. All 10 APTOS rows are now at 3 seeds × 5-fold on the `retfound-capsnet-final` W&B project. Numbers below reflect the current `results/aptos_final_table.md` (10 rows), `results/per_class_breakdown.csv` (Vanilla · Ordinal · LoRA all pooled over 3 seeds), and regenerated figures `results/figures/fig_*_lora*`. LoRA pooled 3-seed: QWK **0.9127 ± 0.0008**, Acc **0.8237 ± 0.0068**, F1 **0.6627 ± 0.0105**, MAE **0.214 ± 0.006**. IDRiD + Messidor-2 runs still pending re-run.
+> **⚠ HISTORICAL PLANNING DOCUMENT — do not quote its numbers.** Frozen at
+> 2026-04-22, before the experiments were re-run on the A100. Every figure
+> attributed to *our* method below is superseded, and several conclusions
+> changed rather than just shifting a digit: the frozen QWK is 0.8923 not
+> 0.8932, LoRA is 0.9143 not 0.9127, full fine-tuning turns out to be *worse*
+> than a frozen backbone, DINOv2 beats RETFound throughout, and the heads are
+> under-confident rather than over-confident. For anything about our own
+> results use, in order: the tables in `paper/submission/article.tex`, the
+> script-generated tables in `results/*.{md,csv}`, then the raw per-fold
+> predictions. **What is still useful here is the literature digest** — the
+> close reads of the 11 PDFs in `paper/ref_papers/`, whose numbers are their
+> authors' and do not go stale.
 
 ---
 
